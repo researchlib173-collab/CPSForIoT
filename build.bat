@@ -15,6 +15,8 @@ javac -d out ^
   src\PresenceFusionEngine.java ^
   src\CpsPersistence.java ^
   src\SmartRoomCLI.java ^
+  src\SensorInputApplet.java ^
+  src\RoomDashboardApplet.java ^
   src\SimulatorApp.java ^
   src\SmartRoomDashboard.java
 
@@ -26,7 +28,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo [2/2] Build successful! Binaries in .\out\
 echo.
-echo  Run the CLI workbench  :  run_cli.bat
-echo  Run the I/O Simulator  :  run_sim.bat [host] [port]
-echo  Run the Room Dashboard :  run_dashboard.bat [host] [port]
+echo  1. Run the CLI simulation engine :  run_cli.bat
+echo  2. Run the Sensor Input Applet   :  run_input.bat
+echo  3. Run the Room Dashboard Applet :  run_dashboard.bat
 echo ============================================
