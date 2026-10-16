@@ -1,0 +1,88 @@
+{
+  "format": "CPS_LAYOUT_V1",
+  "workspace": "LayoutTest",
+  "savedAt": "2026-10-16 16:22:09",
+  "boards": [
+    {
+      "id": "RoomMasterMCU",
+      "model": "ESP32_WROOM",
+      "pins": [
+        {
+          "id": "3V3",
+          "mode": "DIGITAL_OUT",
+          "voltage": 3.3
+        },
+        {
+          "id": "GND",
+          "mode": "DIGITAL_OUT",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_04",
+          "mode": "ANALOG_IN",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_12",
+          "mode": "DIGITAL_IN",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_14",
+          "mode": "DIGITAL_IN",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_27",
+          "mode": "ANALOG_IN",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_21",
+          "mode": "PWM_OUT",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_22",
+          "mode": "PWM_OUT",
+          "voltage": 0.0
+        }
+      ],
+      "components": [],
+      "firmware": {
+        "name": "SmartRoom_Firmware_v2.0",
+        "class": "SmartRoomFirmware",
+        "parameters": {
+          "hysteresisSec": 45,
+          "radarThresholdV": 1.5,
+          "pirPin": "GPIO_12",
+          "doorPin": "GPIO_14",
+          "radarPin": "GPIO_27",
+          "lightRelayPin": "GPIO_21",
+          "hvacRelayPin": "GPIO_22"
+        }
+      }
+    },
+    {
+      "id": "PIR_MotionSensor",
+      "model": "CUSTOM",
+      "pins": [
+        {
+          "id": "DATA",
+          "mode": "DIGITAL_IN",
+          "voltage": 0.0
+        }
+      ],
+      "components": []
+    }
+  ],
+  "wires": [
+    {
+      "name": "pir_wire",
+      "fromBoard": "RoomMasterMCU",
+      "fromPin": "GPIO_12",
+      "toBoard": "PIR_MotionSensor",
+      "toPin": "DATA"
+    }
+  ]
+}

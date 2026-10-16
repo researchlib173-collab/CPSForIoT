@@ -103,3 +103,35 @@ inspect RoomMasterMCU
 run_dashboard.bat
 ```
 Click **Connect** to connect to both Port 1 (`9090`) and Port 2 (`9091`). Toggling sensors in the GUI drives real physical netlist voltages, triggering the flashed firmware on the MCU to actuate the relays in real time!
+
+---
+
+## Layout & Board Persistence
+
+### 1. Saving & Loading Entire Workspace Layouts
+Save the active circuit topology (all boards, their pinouts, voltage states, flashed firmware, and connecting wires) into a portable JSON layout file:
+
+```text
+# Save active workspace layout
+layout save smart_room.json
+
+# List all saved layouts
+layout list
+
+# Restore a layout into the workbench
+layout load smart_room.json
+```
+
+### 2. Saving & Loading Standalone Boards with Firmware
+Export an individual board definition, including its model, pin layout, internal components, and on-board firmware configuration:
+
+```text
+# Save an individual board with its flashed firmware
+board save RoomMasterMCU esp32_room_master.json
+
+# List saved boards
+board list
+
+# Load and replicate the board into any workspace
+board load esp32_room_master.json as Room2MCU
+```

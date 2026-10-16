@@ -13,6 +13,7 @@ javac -d out ^
   src\HardwareDictionary.java ^
   src\SmartRoomFirmware.java ^
   src\PresenceFusionEngine.java ^
+  src\CpsPersistence.java ^
   src\SmartRoomCLI.java ^
   src\SimulatorApp.java ^
   src\SmartRoomDashboard.java

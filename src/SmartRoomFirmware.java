@@ -174,9 +174,29 @@ public class SmartRoomFirmware implements CpsDomain.Firmware {
             mcu.getBoardId(), time, from, to, reason);
     }
 
-    // ─── Getters for Diagnostics ─────────────────────────────────────────────
+    // ─── Getters & Serialization ────────────────────────────────────────────
     public RoomState getState()         { return state; }
     public boolean   isLightRelayOn()   { return lightRelayState; }
     public boolean   isHvacRelayOn()    { return hvacRelayState; }
     public long      getHysteresisMs()  { return hysteresisDurationMs; }
+    public int       getHysteresisSec() { return (int) (hysteresisDurationMs / 1000); }
+    public double    getRadarThresholdV() { return radarThresholdV; }
+    public String    getPirPin()        { return pirPin; }
+    public String    getDoorPin()       { return doorPin; }
+    public String    getRadarPin()      { return radarPin; }
+    public String    getLightRelayPin() { return lightRelayPin; }
+    public String    getHvacRelayPin()  { return hvacRelayPin; }
+
+    @Override
+    public Map<String, Object> getParameters() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("hysteresisSec", getHysteresisSec());
+        params.put("radarThresholdV", radarThresholdV);
+        params.put("pirPin", pirPin);
+        params.put("doorPin", doorPin);
+        params.put("radarPin", radarPin);
+        params.put("lightRelayPin", lightRelayPin);
+        params.put("hvacRelayPin", hvacRelayPin);
+        return params;
+    }
 }

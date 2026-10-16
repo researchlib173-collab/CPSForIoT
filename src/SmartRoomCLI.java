@@ -1,8 +1,9 @@
 import java.util.*;
 import java.util.concurrent.*;
+import java.io.*;
 
 // ============================================================================
-// SMART ROOM CLI — Phase 2: workspace, create board, add pin, sensor fusion
+// SMART ROOM CLI — Cyber-Physical Workbench with Layout & Board Persistence
 // ============================================================================
 public class SmartRoomCLI {
 
@@ -54,16 +55,17 @@ public class SmartRoomCLI {
         System.out.println("║  PORT 1 (Radio):    applet link <BOARD> tcp <PORT> (9090)    ║");
         System.out.println("║  PORT 2 (Terminals):workspace terminal link tcp <PORT> (9091)║");
         System.out.println("║                                                              ║");
-        System.out.println("║  workspace create <NAME>          create a workspace         ║");
-        System.out.println("║  workspace use <NAME>             switch active workspace    ║");
+        System.out.println("║  workspace create|use|list [NAME] manage workspaces          ║");
+        System.out.println("║  layout save|load|list [FILE]     save/restore full circuit  ║");
+        System.out.println("║  board save|load|list [B] [FILE]  save/load board & firmware ║");
         System.out.println("║  import <MODEL> as <NAME>         ESP32/NODEMCU/ARDUINO/     ║");
         System.out.println("║                                   RELAY_HV_MODULE            ║");
         System.out.println("║  create board <NAME>              blank custom board         ║");
         System.out.println("║  add pin <BOARD> <PIN> <MODE>     DIGITAL_IN/OUT ANALOG_IN   ║");
-        System.out.println("║  connect <B1> <P1> to <B2> <P2> [wire]                       ║");
+        System.out.println("║  connect <B1> <P1> to <B2> <P2>   connect with wire          ║");
         System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
         System.out.println("║  flash <BOARD> <FIRMWARE> [sec]   flash on-board firmware    ║");
-        System.out.println("║  sim start|stop|status                                       ║");
+        System.out.println("║  sim start|stop|status            clock engine control       ║");
         System.out.println("║  list boards|wires|workspaces     inspect <BOARD>            ║");
         System.out.println("║  exit                                                        ║");
         System.out.println("╚══════════════════════════════════════════════════════════════╝");
@@ -103,6 +105,128 @@ public class SmartRoomCLI {
                         case "list" -> workspaces.forEach((n, b) ->
                             System.out.printf("  %-20s  boards=%d %s%n", n, b.size(),
                                 n.equals(activeWorkspace) ? "← active" : ""));
+                    }
+                }
+
+                // ── layout save <filename> / layout load <filename> / layout list ─
+                case "layout" -> {
+                    if (parts.length < 2) {
+                        System.out.println("[SYNTAX] layout save <file> | layout load <file> | layout list");
+                        return;
+                    }
+                    switch (parts[1].toLowerCase()) {
+                        case "save" -> {
+                            if (parts.length < 3) {
+                                System.out.println("[SYNTAX] layout save <filename>");
+                                return;
+                            }
+                            String filename = parts[2];
+                            if (!filename.endsWith(".json")) filename += ".json";
+                            File f = resolveLayoutFile(filename);
+                            CpsPersistence.saveLayout(activeWorkspace, boards(), wires, f);
+                            System.out.printf("[LAYOUT] Successfully saved workspace layout '%s' (%d boards, %d wires) to: %s%n",
+                                activeWorkspace, boards().size(), wires.size(), f.getPath());
+                        }
+                        case "load" -> {
+                            if (parts.length < 3) {
+                                System.out.println("[SYNTAX] layout load <filename>");
+                                return;
+                            }
+                            String filename = parts[2];
+                            if (!filename.endsWith(".json")) filename += ".json";
+                            File f = resolveLayoutFile(filename);
+                            CpsPersistence.LayoutData data = CpsPersistence.loadLayout(f);
+                            activeWorkspace = data.workspaceName;
+                            workspaces.put(activeWorkspace, data.boards);
+                            wires = data.wires;
+                            for (CpsDomain.Board b : data.boards.values()) {
+                                if (b.getFlashedFirmware() instanceof SmartRoomFirmware srf) {
+                                    fusionFirmware = srf;
+                                }
+                            }
+                            System.out.printf("[LAYOUT] Successfully loaded layout '%s' (%d boards, %d wires) from: %s%n",
+                                activeWorkspace, data.boards.size(), data.wires.size(), f.getPath());
+                        }
+                        case "list" -> {
+                            File dir = new File("layouts");
+                            if (!dir.exists() || dir.listFiles() == null) {
+                                System.out.println("  No saved layouts found in layouts/ directory.");
+                            } else {
+                                File[] files = dir.listFiles((d, n) -> n.endsWith(".json"));
+                                if (files == null || files.length == 0) {
+                                    System.out.println("  No saved layouts found in layouts/ directory.");
+                                } else {
+                                    System.out.println("  Saved Layouts (in layouts/):");
+                                    for (File f : files) {
+                                        System.out.printf("    %-25s  (%d KB)%n", f.getName(), f.length() / 1024 + 1);
+                                    }
+                                }
+                            }
+                        }
+                        default -> System.out.println("[SYNTAX] layout save <file> | layout load <file> | layout list");
+                    }
+                }
+
+                // ── board save <board> [filename] / board load <file> [as <name>] / board list ─
+                case "board" -> {
+                    if (parts.length < 2) {
+                        System.out.println("[SYNTAX] board save <board> [file] | board load <file> [as <name>] | board list");
+                        return;
+                    }
+                    switch (parts[1].toLowerCase()) {
+                        case "save" -> {
+                            if (parts.length < 3) {
+                                System.out.println("[SYNTAX] board save <BOARD> [filename]");
+                                return;
+                            }
+                            String bName = parts[2];
+                            CpsDomain.Board b = boards().get(bName);
+                            if (b == null) { System.out.println("[ERR] Board not found: " + bName); return; }
+                            String filename = (parts.length > 3) ? parts[3] : (bName + ".json");
+                            if (!filename.endsWith(".json")) filename += ".json";
+                            File f = resolveBoardFile(filename);
+                            CpsPersistence.saveBoard(b, f);
+                            System.out.printf("[BOARD] Saved board '%s' [%s] with firmware '%s' to: %s%n",
+                                bName, b.model,
+                                (b.getFlashedFirmware() != null ? b.getFlashedFirmware().getName() : "none"),
+                                f.getPath());
+                        }
+                        case "load" -> {
+                            if (parts.length < 3) {
+                                System.out.println("[SYNTAX] board load <filename> [as <NEW_NAME>]");
+                                return;
+                            }
+                            String filename = parts[2];
+                            if (!filename.endsWith(".json")) filename += ".json";
+                            File f = resolveBoardFile(filename);
+                            String newName = (parts.length >= 5 && parts[3].equalsIgnoreCase("as")) ? parts[4] : null;
+                            CpsDomain.Board b = CpsPersistence.loadBoard(f, newName);
+                            boards().put(b.getId(), b);
+                            if (b.getFlashedFirmware() instanceof SmartRoomFirmware srf) {
+                                fusionFirmware = srf;
+                            }
+                            System.out.printf("[BOARD] Loaded board '%s' [%s] with firmware '%s' into workspace '%s'%n",
+                                b.getId(), b.model,
+                                (b.getFlashedFirmware() != null ? b.getFlashedFirmware().getName() : "none"),
+                                activeWorkspace);
+                        }
+                        case "list", "list-saved" -> {
+                            File dir = new File("saved_boards");
+                            if (!dir.exists() || dir.listFiles() == null) {
+                                System.out.println("  No saved boards found in saved_boards/ directory.");
+                            } else {
+                                File[] files = dir.listFiles((d, n) -> n.endsWith(".json"));
+                                if (files == null || files.length == 0) {
+                                    System.out.println("  No saved boards found in saved_boards/ directory.");
+                                } else {
+                                    System.out.println("  Saved Boards (in saved_boards/):");
+                                    for (File f : files) {
+                                        System.out.printf("    %-25s  (%d KB)%n", f.getName(), f.length() / 1024 + 1);
+                                    }
+                                }
+                            }
+                        }
+                        default -> System.out.println("[SYNTAX] board save <board> [file] | board load <file> [as <name>] | board list");
                     }
                 }
 
@@ -297,5 +421,17 @@ public class SmartRoomCLI {
         }
         for (CpsDomain.Board b : boards().values()) b.tickLogic();
         if (terminalBridge != null) terminalBridge.broadcastNetlistTick();
+    }
+
+    private static File resolveLayoutFile(String filename) {
+        File f = new File(filename);
+        if (f.isAbsolute() || filename.contains("/") || filename.contains("\\")) return f;
+        return new File("layouts", filename);
+    }
+
+    private static File resolveBoardFile(String filename) {
+        File f = new File(filename);
+        if (f.isAbsolute() || filename.contains("/") || filename.contains("\\")) return f;
+        return new File("saved_boards", filename);
     }
 }

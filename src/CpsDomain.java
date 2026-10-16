@@ -84,6 +84,7 @@ public class CpsDomain {
         String getName();
         void setup(McuHAL mcu);
         void loop(McuHAL mcu);
+        default Map<String, Object> getParameters() { return Collections.emptyMap(); }
     }
 
     public static class McuHAL {
