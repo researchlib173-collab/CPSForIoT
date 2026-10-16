@@ -99,6 +99,7 @@ public class SmartRoomCLI {
                             if (parts[2].equalsIgnoreCase("link")) {
                                 int port = Integer.parseInt(parts[4]);
                                 terminalBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
+                                terminalBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
                                 System.out.printf("[PORT 2 - TERMINALS] Physical Netlist Terminal Bus open on port %d%n", port);
                             }
                         }
@@ -146,14 +147,22 @@ public class SmartRoomCLI {
                                 }
                             }
                             if (data.terminalPort > 0) {
-                                if (terminalBridge == null || terminalBridge.getPort() != data.terminalPort) {
-                                    terminalBridge = new CpsDomain.PhysicalTerminalBusBridge(data.terminalPort, boards(), wires);
-                                } else {
-                                    terminalBridge.updateContext(boards(), wires);
-                                }
+                                terminalBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(data.terminalPort, boards(), wires);
+                                terminalBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
                             } else if (terminalBridge != null) {
                                 terminalBridge.updateContext(boards(), wires);
+                                terminalBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
                             }
+
+                            // Automatically start simulation clock so firmware ticks continuously
+                            if (!isRunning) {
+                                isRunning = true;
+                                scheduler.scheduleAtFixedRate(SmartRoomCLI::tick, 0, 1000, TimeUnit.MILLISECONDS);
+                                System.out.println("[SIM]       ▶ Simulation clock automatically started (1 Hz)");
+                            }
+                            // Execute immediate first tick for initial telemetry broadcast
+                            tick();
+
                             System.out.printf("[LAYOUT] Successfully loaded layout '%s' (%d boards, %d wires) from: %s%n",
                                 activeWorkspace, data.boards.size(), data.wires.size(), f.getPath());
                         }

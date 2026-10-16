@@ -213,9 +213,7 @@ public class CpsDomain {
 
         private final int port;
         private final String bridgeName;
-        private PrintWriter out;
-        private BufferedReader in;
-        private volatile boolean connected = false;
+        private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
         private final List<MessageListener> listeners = new ArrayList<>();
 
         public interface MessageListener { void onMessage(String msg); }
@@ -237,24 +235,42 @@ public class CpsDomain {
                 System.out.printf("[PORT 1 - WIRELESS] %s active on port %d. Waiting for telemetry client...%n", bridgeName, port);
                 while (true) {
                     Socket client = server.accept();
-                    out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true);
-                    in  = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                    connected = true;
-                    System.out.printf("[PORT 1 - WIRELESS] Client connected to %s on port %d%n", bridgeName, port);
-                    String line;
-                    while ((line = in.readLine()) != null) {
-                        for (MessageListener l : listeners) l.onMessage(line);
-                    }
-                    connected = false;
-                    System.out.printf("[PORT 1 - WIRELESS] Client disconnected from %s%n", bridgeName);
+                    Thread ct = new Thread(() -> handleClient(client), "RadioClient-" + client.getRemoteSocketAddress());
+                    ct.setDaemon(true);
+                    ct.start();
                 }
             } catch (IOException e) {
                 System.out.printf("[PORT 1 ERROR] %s (port %d): %s%n", bridgeName, port, e.getMessage());
             }
         }
 
-        public void transmit(String data) { if (out != null && connected) out.println(data); }
-        public boolean isConnected() { return connected; }
+        private void handleClient(Socket client) {
+            System.out.printf("[PORT 1 - WIRELESS] Telemetry client connected from %s%n", client.getRemoteSocketAddress());
+            PrintWriter out = null;
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                 PrintWriter pw = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true)) {
+                out = pw;
+                activeClients.add(out);
+                String line;
+                while ((line = in.readLine()) != null) {
+                    for (MessageListener l : listeners) l.onMessage(line);
+                }
+            } catch (IOException ignored) {
+            } finally {
+                if (out != null) activeClients.remove(out);
+                System.out.printf("[PORT 1 - WIRELESS] Telemetry client disconnected from %s%n", client.getRemoteSocketAddress());
+            }
+        }
+
+        public void transmit(String data) {
+            for (PrintWriter client : activeClients) {
+                try {
+                    client.println(data);
+                } catch (Exception ignored) {}
+            }
+        }
+
+        public boolean isConnected() { return !activeClients.isEmpty(); }
         public int getPort() { return port; }
         public void addMessageListener(MessageListener l) { listeners.add(l); }
     }
@@ -279,6 +295,8 @@ public class CpsDomain {
         private List<Wire> wires;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
         private volatile boolean isRunning = true;
+        private Runnable onPinChangeCallback = null;
+        public void setOnPinChangeCallback(Runnable cb) { this.onPinChangeCallback = cb; }
 
         public PhysicalTerminalBusBridge(int port, Map<String, Board> boards, List<Wire> wires) {
             this.port = port;
@@ -361,6 +379,9 @@ public class CpsDomain {
                                 Pin p = b.getPin(pName);
                                 if (p != null) {
                                     p.setVoltage(v);
+                                    if (onPinChangeCallback != null) {
+                                        try { onPinChangeCallback.run(); } catch (Exception ignored) {}
+                                    }
                                     responder.printf("{\"status\":\"OK\",\"action\":\"SET\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}%n",
                                         bName, pName, v, p.digitalState);
                                     broadcastTerminalEvent(String.format("{\"event\":\"PIN_CHANGED\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}",
@@ -405,6 +426,9 @@ public class CpsDomain {
                     Pin p = b.getPin(pName);
                     if (p != null) {
                         p.setVoltage(v);
+                        if (onPinChangeCallback != null) {
+                            try { onPinChangeCallback.run(); } catch (Exception ignored) {}
+                        }
                         responder.printf("{\"status\":\"OK\",\"action\":\"SET\",\"terminal\":\"%s.%s\",\"voltage\":%.3f}%n", bName, pName, v);
                         broadcastTerminalEvent(String.format("{\"event\":\"PIN_CHANGED\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}",
                             bName, pName, v, p.digitalState), responder);
