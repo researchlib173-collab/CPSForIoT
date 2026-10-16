@@ -79,11 +79,80 @@ public class CpsDomain {
         public String getType() { return type; }
     }
 
+    // --- HARDWARE ABSTRACTION LAYER (HAL) FOR ON-BOARD FIRMWARE ---
+    public interface Firmware {
+        String getName();
+        void setup(McuHAL mcu);
+        void loop(McuHAL mcu);
+    }
+
+    public static class McuHAL {
+        private final Board board;
+        public McuHAL(Board board) { this.board = board; }
+
+        public String getBoardId() { return board.getId(); }
+        public String getModel()   { return board.model; }
+
+        public SignalState digitalRead(String pinId) {
+            Pin p = board.getPin(pinId);
+            return p != null ? p.digitalState : SignalState.LOW;
+        }
+
+        public boolean isHigh(String pinId) {
+            return digitalRead(pinId) == SignalState.HIGH;
+        }
+
+        public boolean isLow(String pinId) {
+            return digitalRead(pinId) == SignalState.LOW;
+        }
+
+        public void digitalWrite(String pinId, SignalState state) {
+            Pin p = board.getPin(pinId);
+            if (p != null) p.setVoltage(state == SignalState.HIGH ? 3.3 : 0.0);
+        }
+
+        public void digitalWrite(String pinId, boolean high) {
+            digitalWrite(pinId, high ? SignalState.HIGH : SignalState.LOW);
+        }
+
+        public double analogReadVoltage(String pinId) {
+            Pin p = board.getPin(pinId);
+            return p != null ? p.voltage : 0.0;
+        }
+
+        public int analogRead10Bit(String pinId) {
+            double v = analogReadVoltage(pinId);
+            return (int) Math.round((v / 3.3) * 1023.0);
+        }
+
+        public void analogWriteVoltage(String pinId, double voltage) {
+            Pin p = board.getPin(pinId);
+            if (p != null) p.setVoltage(voltage);
+        }
+
+        public void radioTransmit(String jsonPayload) {
+            if (board.radioBridge != null) {
+                board.radioBridge.transmit(jsonPayload);
+            }
+        }
+
+        public long millis() {
+            return System.currentTimeMillis();
+        }
+
+        public void setProperty(String key, Object val) { board.setProperty(key, val); }
+        public Object getProperty(String key, Object def) { return board.getProperty(key, def); }
+    }
+
     public static class Board extends SimulationObject {
         public String model;
         public Map<String, Pin> pins = new LinkedHashMap<>();
         public Map<String, ElectronicComponent> components = new LinkedHashMap<>();
         
+        // On-board flashed firmware & HAL
+        private Firmware flashedFirmware = null;
+        private final McuHAL hal = new McuHAL(this);
+
         // PORT 1: Virtual Wireless Radio (Wi-Fi / BLE Telemetry Bridge)
         public ExternalAppletBridge radioBridge = null;
         public ExternalAppletBridge socketBridge = null; // backward compatibility alias
@@ -97,6 +166,17 @@ public class CpsDomain {
         public void addComponent(ElectronicComponent c) { components.put(c.id, c); }
         public void addTickListener(TickListener l) { tickListeners.add(l); }
 
+        public void flashFirmware(Firmware fw) {
+            this.flashedFirmware = fw;
+            if (fw != null) {
+                System.out.printf("[FLASH] Flashing %s onto board '%s' [%s]...%n", fw.getName(), id, model);
+                fw.setup(hal);
+            }
+        }
+
+        public Firmware getFlashedFirmware() { return flashedFirmware; }
+        public McuHAL getHal() { return hal; }
+
         public void enableRadioBridge(int port) {
             this.radioBridge = new ExternalAppletBridge(port, "RadioBridge-" + id);
             this.socketBridge = this.radioBridge;
@@ -109,7 +189,14 @@ public class CpsDomain {
 
         @Override
         public void tickLogic() {
-            super.tickLogic();
+            // Priority 1: Flashed on-board Firmware
+            if (flashedFirmware != null) {
+                flashedFirmware.loop(hal);
+            } else if (externalOverrideLogic != null) {
+                externalOverrideLogic.run();
+            } else {
+                baseLogic.run();
+            }
             for (ElectronicComponent c : components.values()) c.tickLogic();
             for (TickListener l : tickListeners) l.onTick(this);
         }

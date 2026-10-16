@@ -19,7 +19,8 @@ connect RoomMasterMCU GPIO_27 to MillimeterWaveRadar PRESENCE_SIG radar_wire
 connect RoomMasterMCU GPIO_21 to LightRelay IN_DC light_control_wire
 connect RoomMasterMCU GPIO_22 to HvacRelay IN_DC hvac_control_wire
 
-attach fusion RoomMasterMCU 30
+# FLASH ON-BOARD FIRMWARE: Burn the Smart Room control logic directly to the MCU
+flash RoomMasterMCU SmartRoomFirmware 30
 
 # PORT 1: Open Virtual Wi-Fi / Bluetooth Radio Bridge for IoT telemetry
 applet link RoomMasterMCU tcp 9090

@@ -11,6 +11,7 @@ echo [1/2] Compiling all sources...
 javac -d out ^
   src\CpsDomain.java ^
   src\HardwareDictionary.java ^
+  src\SmartRoomFirmware.java ^
   src\PresenceFusionEngine.java ^
   src\SmartRoomCLI.java ^
   src\SimulatorApp.java ^

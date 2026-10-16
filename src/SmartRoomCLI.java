@@ -17,6 +17,7 @@ public class SmartRoomCLI {
 
     public static List<CpsDomain.Wire> wires    = new ArrayList<>();
     public static PresenceFusionEngine fusion   = null;   // Set when presence engine is attached
+    public static SmartRoomFirmware fusionFirmware = null; // Flashed on-board firmware
     public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null; // PORT 2: Physical Netlist Terminal Bus
     private static volatile boolean isRunning   = false;
     private static final ScheduledExecutorService scheduler =
@@ -29,10 +30,19 @@ public class SmartRoomCLI {
         printBanner();
         while (true) {
             System.out.print("\u001B[32m[" + activeWorkspace + "] CPS > \u001B[0m");
-            if (!sc.hasNextLine()) break;
+            if (!sc.hasNextLine()) {
+                // If input was piped and reached EOF, keep running background simulation if active
+                if (isRunning) {
+                    System.out.println("\n[SIM] Piped setup complete. Simulation running in background.");
+                    try {
+                        while (isRunning) Thread.sleep(5000);
+                    } catch (InterruptedException ignored) {}
+                }
+                break;
+            }
             String raw = sc.nextLine().trim();
-            if (raw.isEmpty()) continue;
-            if (raw.equalsIgnoreCase("exit")) { scheduler.shutdown(); break; }
+            if (raw.isEmpty() || raw.startsWith("#") || raw.startsWith("//")) continue;
+            if (raw.equalsIgnoreCase("exit")) { isRunning = false; scheduler.shutdown(); break; }
             process(raw);
         }
     }
@@ -52,7 +62,7 @@ public class SmartRoomCLI {
         System.out.println("║  add pin <BOARD> <PIN> <MODE>     DIGITAL_IN/OUT ANALOG_IN   ║");
         System.out.println("║  connect <B1> <P1> to <B2> <P2> [wire]                       ║");
         System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
-        System.out.println("║  attach fusion <BOARD> [hysteresis_sec]  attach SM           ║");
+        System.out.println("║  flash <BOARD> <FIRMWARE> [sec]   flash on-board firmware    ║");
         System.out.println("║  sim start|stop|status                                       ║");
         System.out.println("║  list boards|wires|workspaces     inspect <BOARD>            ║");
         System.out.println("║  exit                                                        ║");
@@ -170,16 +180,30 @@ public class SmartRoomCLI {
                         parts[1], parts[2], v, p.digitalState);
                 }
 
-                // ── attach fusion RoomMasterMCU [900] ─────────────────────────
+                // ── flash RoomMasterMCU SmartRoomFirmware [30] ────────────────
+                case "flash" -> {
+                    CpsDomain.Board b = boards().get(parts[1]);
+                    if (b == null) { System.out.println("[ERR] Board not found: " + parts[1]); return; }
+                    String fwName = (parts.length > 2) ? parts[2] : "SmartRoomFirmware";
+                    int hysSec = (parts.length > 3) ? Integer.parseInt(parts[3]) : 30;
+                    SmartRoomFirmware fw = new SmartRoomFirmware(hysSec);
+                    b.flashFirmware(fw);
+                    fusionFirmware = fw;
+                    System.out.printf("[FLASH] Successfully flashed %s on %s (Hysteresis = %ds)%n",
+                        fw.getName(), parts[1], hysSec);
+                }
+
+                // ── attach fusion RoomMasterMCU [900] (backward compatibility) ─
                 case "attach" -> {
                     if (parts[1].equalsIgnoreCase("fusion")) {
                         CpsDomain.Board b = boards().get(parts[2]);
                         if (b == null) { System.out.println("[ERR] Board not found: " + parts[2]); return; }
-                        int hysSec = (parts.length > 3) ? Integer.parseInt(parts[3]) : 900;
-                        fusion = new PresenceFusionEngine(hysSec, 60.0);
-                        b.setExternalLogic(fusion.buildFirmwareFor(b));
-                        System.out.printf("[FUSION]    Presence SM attached to %s  (hysteresis=%ds)%n",
-                            parts[2], hysSec);
+                        int hysSec = (parts.length > 3) ? Integer.parseInt(parts[3]) : 30;
+                        SmartRoomFirmware fw = new SmartRoomFirmware(hysSec);
+                        b.flashFirmware(fw);
+                        fusionFirmware = fw;
+                        System.out.printf("[FLASH] Flashed %s onto %s (hysteresis=%ds)%n",
+                            fw.getName(), parts[2], hysSec);
                     }
                 }
 
@@ -209,10 +233,13 @@ public class SmartRoomCLI {
                             System.out.printf("[SIM]       %s  Boards=%d  Wires=%d  Workspace=%s%n",
                                 isRunning ? "▶ RUNNING" : "■ STOPPED",
                                 boards().size(), wires.size(), activeWorkspace);
-                            if (fusion != null)
-                                System.out.printf("[FUSION]    RoomState=%s  Light=%b  HVAC=%b%n",
-                                    fusion.getCurrentState(),
-                                    fusion.isLightRelayOn(), fusion.isHvacRelayOn());
+                            if (fusionFirmware != null) {
+                                System.out.printf("[FIRMWARE]  %s  State=%s  LightRelay=%b  HvacRelay=%b%n",
+                                    fusionFirmware.getName(),
+                                    fusionFirmware.getState(),
+                                    fusionFirmware.isLightRelayOn(),
+                                    fusionFirmware.isHvacRelayOn());
+                            }
                         }
                     }
                 }
@@ -221,7 +248,9 @@ public class SmartRoomCLI {
                 case "list" -> {
                     switch (parts[1].toLowerCase()) {
                         case "boards" -> boards().forEach((n, b) ->
-                            System.out.printf("  %-20s  model=%-20s  pins=%d%n", n, b.model, b.pins.size()));
+                            System.out.printf("  %-20s  model=%-20s  pins=%d  fw=%s%n",
+                                n, b.model, b.pins.size(),
+                                (b.getFlashedFirmware() != null ? b.getFlashedFirmware().getName() : "none")));
                         case "wires"  -> wires.forEach(w ->
                             System.out.printf("  %-20s  %s ←→ %s%n",
                                 w.wireName, w.pinA.pinId, w.pinB.pinId));
@@ -236,15 +265,14 @@ public class SmartRoomCLI {
                     CpsDomain.Board b = boards().get(parts[1]);
                     if (b == null) { System.out.println("[ERR] Board not found: " + parts[1]); return; }
                     System.out.printf("  Board : %s  [%s]%n", b.id, b.model);
+                    if (b.getFlashedFirmware() != null) {
+                        System.out.printf("    [FIRMWARE] %s (ON-CHIP RUNNING)%n", b.getFlashedFirmware().getName());
+                    }
                     b.pins.forEach((pid, pin) ->
                         System.out.printf("    %-12s  mode=%-12s  V=%.3f  state=%s%n",
                             pid, pin.mode, pin.voltage, pin.digitalState));
                     b.components.forEach((cid, c) ->
                         System.out.printf("    [COMP] %-12s  type=%s%n", cid, c.getType()));
-                    if (fusion != null && b.externalOverrideLogic != null)
-                        System.out.printf("    [FUSION] state=%s  light=%b  hvac=%b%n",
-                            fusion.getCurrentState(),
-                            fusion.isLightRelayOn(), fusion.isHvacRelayOn());
                 }
 
                 default -> System.out.println("[ERR] Unknown command. Type 'exit' to quit.");
