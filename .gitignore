@@ -1,0 +1,11 @@
+# Compiled binaries & artifacts
+out/
+*.class
+
+# OS / Editor temporary files
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+*.iml
+.vscode/
