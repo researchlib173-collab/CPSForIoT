@@ -1,16 +1,55 @@
 # IoT CPS Workbench — Smart Room Energy Management System
 
-A modular Cyber-Physical System (CPS) simulation framework in Java mimicking embedded hardware prototyping, pin netlists, wireless IoT socket bridges, sensor fusion, and interactive Swing GUI dashboards.
+A modular Cyber-Physical System (CPS) simulation framework in Java mimicking embedded hardware prototyping, pin netlists, on-board microcontroller firmware, wireless IoT socket bridges, and interactive Swing GUI dashboards.
 
-## Features
+## System Architecture
 
-- **DBMS-Style Pin Netlist Routing**: Virtual boards connected dynamically via virtual wires (`CpsDomain.java`).
-- **Hardware Component Dictionary**: Virtual ESP32, NodeMCU, Arduino Uno, PIR motion sensor, mmWave radar, door contact sensors, and high-voltage relays (`HardwareDictionary.java`).
-- **Sensor Fusion & Stateful Hysteresis**: Occupancy state machine (`VACANT` ➔ `OCCUPIED` ➔ `HYSTERESIS`) to prevent false vacancy when occupants are sitting or sleeping (`PresenceFusionEngine.java`).
-- **Wireless Socket Bridge**: Streams JSON telemetry over TCP (`localhost:9090`) to external desktop/applet dashboards.
-- **Java Swing GUIs**:
-  - `SmartRoomDashboard.java`: Visualizes room states, radar confidence, relays, and graceful countdown arcs.
-  - `SimulatorApp.java`: Hardware input/output simulation testbed with analog gauges and sliders.
+```text
+                    ┌───────────────────────────────────────────────────────────┐
+                    │               WORKSPACE PHYSICAL NETLIST BUS              │
+                    │   PIR_MotionSensor  ──[Wire]──> GPIO_12                   │
+                    │   DoorContactSensor ──[Wire]──> GPIO_14  [RoomMasterMCU]  │
+                    │   mmWaveRadar       ──[Wire]──> GPIO_27         │         │
+                    │   LightRelay        <──[Wire]── GPIO_21         │         │
+                    │   HvacRelay         <──[Wire]── GPIO_22         │         │
+                    └───────────────▲─────────────────────────▲───────┴─────────┘
+                                    │                         │
+               PHYSICAL TERMINAL    │                         │ WIRELESS ANTENNA
+               I/O TAP              │                         │ TELEMETRY
+                                    ▼                         ▼
+            ┌───────────────────────────────┐     ┌───────────────────────────────┐
+            │ PORT 2: PHYSICAL TERMINAL BUS │     │     PORT 1: WIRELESS BRIDGE   │
+            │          (Port 9091)          │     │          (Port 9090)          │
+            └───────────────▲───────────────┘     └───────────────▲───────────────┘
+                            │                                     │
+                            └───────────────────┬─────────────────┘
+                                                │
+                                    ┌───────────┴───────────┐
+                                    ▼                       ▼
+                        ┌───────────────────────┐ ┌───────────────────┐
+                        │  SmartRoomDashboard   │ │   SimulatorApp    │
+                        │    (Desktop GUI)      │ │   (Desktop GUI)   │
+                        └───────────────────────┘ └───────────────────┘
+```
+
+## Key Modules
+
+- **Core Netlist Engine (`src/CpsDomain.java`)**: Models electrical pins (`DIGITAL_IN`, `DIGITAL_OUT`, `ANALOG_IN`, `PWM_OUT`), wires, propagation, and boards.
+- **Hardware Abstraction Layer (`McuHAL`)**: Provides Arduino/ESP-IDF equivalent hardware API: `digitalRead()`, `digitalWrite()`, `analogReadVoltage()`, `analogWriteVoltage()`, and `radioTransmit()`.
+- **On-Board Microcontroller Firmware (`src/SmartRoomFirmware.java`)**: The compiled control logic burned directly onto the chip:
+  - Samples physical pins (`GPIO_12`, `GPIO_14`, `GPIO_27`).
+  - Evaluates multi-modal sensor fusion (PIR motion + mmWave radar + door contact latches).
+  - Runs stateful hysteresis (`VACANT` ➔ `OCCUPIED` ➔ `HYSTERESIS`) preventing lights from extinguishing when occupants sit still or sleep.
+  - Actuates high-voltage relays (`GPIO_21` lights, `GPIO_22` HVAC).
+  - Broadcasts wireless telemetry over Port 1.
+- **Two-Port Network Architecture**:
+  - **Port 1 (9090)**: Board wireless antenna (Wi-Fi/Bluetooth) streaming JSON telemetry packets.
+  - **Port 2 (9091)**: Physical netlist terminal tap for direct hardware DAQ and voltage injection.
+- **Interactive Swing GUIs**:
+  - `SmartRoomDashboard.java`: Animated room monitor, relay glow circles, radar confidence meters, and hysteresis countdown arcs.
+  - `SimulatorApp.java`: Hardware input/output testbed with analog dials and voltage sliders.
+
+---
 
 ## Quick Start
 
@@ -28,26 +67,39 @@ Paste the setup script into the CLI:
 ```text
 workspace create SmartRoom_Phase2
 import ESP32 as RoomMasterMCU
+
 create board PIR_MotionSensor
 add pin PIR_MotionSensor DATA DIGITAL_IN
+
 create board DoorContactSensor
 add pin DoorContactSensor STATE DIGITAL_IN
+
 create board MillimeterWaveRadar
 add pin MillimeterWaveRadar PRESENCE_SIG ANALOG_IN
+
 import RELAY_HV_MODULE as LightRelay
 import RELAY_HV_MODULE as HvacRelay
+
 connect RoomMasterMCU GPIO_12 to PIR_MotionSensor DATA pir_wire
 connect RoomMasterMCU GPIO_14 to DoorContactSensor STATE door_wire
 connect RoomMasterMCU GPIO_27 to MillimeterWaveRadar PRESENCE_SIG radar_wire
 connect RoomMasterMCU GPIO_21 to LightRelay IN_DC light_control_wire
 connect RoomMasterMCU GPIO_22 to HvacRelay IN_DC hvac_control_wire
-attach fusion RoomMasterMCU 30
+
+# Flash on-board firmware directly onto the MCU ROM
+flash RoomMasterMCU SmartRoomFirmware 30
+
+# Open Port 1 (Wireless telemetry) & Port 2 (Physical terminal bus)
 applet link RoomMasterMCU tcp 9090
+workspace terminal link tcp 9091
+
 sim start
+sim status
+inspect RoomMasterMCU
 ```
 
 ### 3. Run GUI Dashboard
 ```cmd
 run_dashboard.bat
 ```
-Click **Connect** to link to `localhost:9090` and monitor/control the smart room simulation.
+Click **Connect** to connect to both Port 1 (`9090`) and Port 2 (`9091`). Toggling sensors in the GUI drives real physical netlist voltages, triggering the flashed firmware on the MCU to actuate the relays in real time!
