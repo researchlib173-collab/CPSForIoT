@@ -17,6 +17,7 @@ public class SmartRoomCLI {
 
     public static List<CpsDomain.Wire> wires    = new ArrayList<>();
     public static PresenceFusionEngine fusion   = null;   // Set when presence engine is attached
+    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null; // PORT 2: Physical Netlist Terminal Bus
     private static volatile boolean isRunning   = false;
     private static final ScheduledExecutorService scheduler =
         Executors.newScheduledThreadPool(2);
@@ -38,22 +39,23 @@ public class SmartRoomCLI {
 
     private static void printBanner() {
         System.out.println("╔══════════════════════════════════════════════════════════════╗");
-        System.out.println("║     IoT CPS WORKBENCH — Phase 2: Smart Room Fusion Engine    ║");
+        System.out.println("║     IoT CPS WORKBENCH — Two-Port Cyber-Physical Simulation   ║");
         System.out.println("╠══════════════════════════════════════════════════════════════╣");
+        System.out.println("║  PORT 1 (Radio):    applet link <BOARD> tcp <PORT> (9090)    ║");
+        System.out.println("║  PORT 2 (Terminals):workspace terminal link tcp <PORT> (9091)║");
+        System.out.println("║                                                              ║");
         System.out.println("║  workspace create <NAME>          create a workspace         ║");
-        System.out.println("║  workspace use <NAME>             switch active workspace     ║");
-        System.out.println("║  import <MODEL> as <NAME>         ESP32/NODEMCU/ARDUINO/      ║");
-        System.out.println("║                                   RELAY_HV_MODULE             ║");
-        System.out.println("║  create board <NAME>              blank custom board          ║");
-        System.out.println("║  add pin <BOARD> <PIN> <MODE>     DIGITAL_IN/OUT ANALOG_IN    ║");
-        System.out.println("║                                   PWM_OUT                     ║");
+        System.out.println("║  workspace use <NAME>             switch active workspace    ║");
+        System.out.println("║  import <MODEL> as <NAME>         ESP32/NODEMCU/ARDUINO/     ║");
+        System.out.println("║                                   RELAY_HV_MODULE            ║");
+        System.out.println("║  create board <NAME>              blank custom board         ║");
+        System.out.println("║  add pin <BOARD> <PIN> <MODE>     DIGITAL_IN/OUT ANALOG_IN   ║");
         System.out.println("║  connect <B1> <P1> to <B2> <P2> [wire]                       ║");
-        System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage           ║");
+        System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
         System.out.println("║  attach fusion <BOARD> [hysteresis_sec]  attach SM           ║");
-        System.out.println("║  applet link <BOARD> tcp <PORT>                               ║");
-        System.out.println("║  sim start|stop|status                                        ║");
-        System.out.println("║  list boards|wires|workspaces     inspect <BOARD>             ║");
-        System.out.println("║  exit                                                         ║");
+        System.out.println("║  sim start|stop|status                                       ║");
+        System.out.println("║  list boards|wires|workspaces     inspect <BOARD>            ║");
+        System.out.println("║  exit                                                        ║");
         System.out.println("╚══════════════════════════════════════════════════════════════╝");
     }
 
@@ -63,7 +65,7 @@ public class SmartRoomCLI {
         try {
             switch (parts[0].toLowerCase()) {
 
-                // ── workspace create SmartRoom_Phase2 ──────────────────────────
+                // ── workspace create / use / terminal link tcp 9091 ────────────
                 case "workspace" -> {
                     switch (parts[1].toLowerCase()) {
                         case "create" -> {
@@ -79,6 +81,14 @@ public class SmartRoomCLI {
                             }
                             activeWorkspace = wName;
                             System.out.printf("[WORKSPACE] Switched to: %s%n", wName);
+                        }
+                        case "terminal" -> {
+                            // workspace terminal link tcp 9091
+                            if (parts[2].equalsIgnoreCase("link")) {
+                                int port = Integer.parseInt(parts[4]);
+                                terminalBridge = new CpsDomain.PhysicalTerminalBusBridge(port, boards(), wires);
+                                System.out.printf("[PORT 2 - TERMINALS] Physical Netlist Terminal Bus open on port %d%n", port);
+                            }
                         }
                         case "list" -> workspaces.forEach((n, b) ->
                             System.out.printf("  %-20s  boards=%d %s%n", n, b.size(),
@@ -258,5 +268,6 @@ public class SmartRoomCLI {
             }
         }
         for (CpsDomain.Board b : boards().values()) b.tickLogic();
+        if (terminalBridge != null) terminalBridge.broadcastNetlistTick();
     }
 }

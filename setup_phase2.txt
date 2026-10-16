@@ -1,19 +1,31 @@
-﻿workspace create SmartRoom_Phase2
+workspace create SmartRoom_Phase2
 import ESP32 as RoomMasterMCU
+
 create board PIR_MotionSensor
 add pin PIR_MotionSensor DATA DIGITAL_IN
+
 create board DoorContactSensor
 add pin DoorContactSensor STATE DIGITAL_IN
+
 create board MillimeterWaveRadar
 add pin MillimeterWaveRadar PRESENCE_SIG ANALOG_IN
+
 import RELAY_HV_MODULE as LightRelay
 import RELAY_HV_MODULE as HvacRelay
+
 connect RoomMasterMCU GPIO_12 to PIR_MotionSensor DATA pir_wire
 connect RoomMasterMCU GPIO_14 to DoorContactSensor STATE door_wire
 connect RoomMasterMCU GPIO_27 to MillimeterWaveRadar PRESENCE_SIG radar_wire
 connect RoomMasterMCU GPIO_21 to LightRelay IN_DC light_control_wire
 connect RoomMasterMCU GPIO_22 to HvacRelay IN_DC hvac_control_wire
+
 attach fusion RoomMasterMCU 30
+
+# PORT 1: Open Virtual Wi-Fi / Bluetooth Radio Bridge for IoT telemetry
 applet link RoomMasterMCU tcp 9090
+
+# PORT 2: Open Physical Netlist Terminal Bus Bridge for direct pin I/O access
+workspace terminal link tcp 9091
+
 sim start
 sim status

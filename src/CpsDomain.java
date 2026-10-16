@@ -4,7 +4,7 @@ import java.io.*;
 import java.net.*;
 
 // ============================================================================
-// PART 1: CYBER-PHYSICAL DOMAIN CLASSES
+// PART 1: CYBER-PHYSICAL DOMAIN CLASSES (Two-Port Cyber-Physical Architecture)
 // ============================================================================
 public class CpsDomain {
 
@@ -42,7 +42,6 @@ public class CpsDomain {
         public double voltage = 0.0;
         public SignalState digitalState = SignalState.LOW;
         public List<Wire> connectedWires = new ArrayList<>();
-        /** Optional listener called whenever voltage changes */
         public interface VoltageListener { void onVoltageChanged(double newVoltage); }
         private List<VoltageListener> listeners = new ArrayList<>();
 
@@ -63,8 +62,13 @@ public class CpsDomain {
         public Pin pinA, pinB;
         public Wire(String name, Pin a, Pin b) { this.wireName = name; this.pinA = a; this.pinB = b; }
         public void propagate(Pin source, double v) {
-            if (source == pinA && pinB != null) { pinB.voltage = v; pinB.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW; }
-            else if (source == pinB && pinA != null) { pinA.voltage = v; pinA.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW; }
+            if (source == pinA && pinB != null) {
+                pinB.voltage = v;
+                pinB.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW;
+            } else if (source == pinB && pinA != null) {
+                pinA.voltage = v;
+                pinA.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW;
+            }
         }
     }
 
@@ -79,8 +83,11 @@ public class CpsDomain {
         public String model;
         public Map<String, Pin> pins = new LinkedHashMap<>();
         public Map<String, ElectronicComponent> components = new LinkedHashMap<>();
-        public ExternalAppletBridge socketBridge = null;
-        /** Listeners notified every tick — used by the GUI dashboard */
+        
+        // PORT 1: Virtual Wireless Radio (Wi-Fi / BLE Telemetry Bridge)
+        public ExternalAppletBridge radioBridge = null;
+        public ExternalAppletBridge socketBridge = null; // backward compatibility alias
+
         public interface TickListener { void onTick(Board board); }
         private List<TickListener> tickListeners = new ArrayList<>();
 
@@ -90,8 +97,14 @@ public class CpsDomain {
         public void addComponent(ElectronicComponent c) { components.put(c.id, c); }
         public void addTickListener(TickListener l) { tickListeners.add(l); }
 
+        public void enableRadioBridge(int port) {
+            this.radioBridge = new ExternalAppletBridge(port, "RadioBridge-" + id);
+            this.socketBridge = this.radioBridge;
+        }
+
+        // Backward compatibility
         public void enableSocketBridge(int port) {
-            this.socketBridge = new ExternalAppletBridge(port);
+            enableRadioBridge(port);
         }
 
         @Override
@@ -102,9 +115,10 @@ public class CpsDomain {
         }
     }
 
-    // --- 4. NETWORK LAYER (Virtual Wi-Fi → Localhost TCP Socket) ---
+    // --- 4. PORT 1: WIRELESS IOT BRIDGE (Wi-Fi / Bluetooth Radio) ---
     public static class ExternalAppletBridge {
         private final int port;
+        private final String bridgeName;
         private PrintWriter out;
         private BufferedReader in;
         private volatile boolean connected = false;
@@ -112,27 +126,34 @@ public class CpsDomain {
 
         public interface MessageListener { void onMessage(String msg); }
 
-        public ExternalAppletBridge(int port) {
+        public ExternalAppletBridge(int port, String bridgeName) {
             this.port = port;
-            new Thread(this::startServer, "Bridge-" + port).start();
+            this.bridgeName = bridgeName;
+            new Thread(this::startServer, bridgeName + "-" + port).start();
+        }
+
+        public ExternalAppletBridge(int port) {
+            this(port, "Bridge");
         }
 
         private void startServer() {
             try (ServerSocket server = new ServerSocket(port)) {
-                System.out.println("[LINK] Bridge active on port " + port + ". Waiting for client...");
-                Socket client = server.accept();
-                out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true);
-                in  = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                connected = true;
-                System.out.println("[LINK] Client connected on port " + port);
-                // Read incoming messages in background
-                String line;
-                while ((line = in.readLine()) != null) {
-                    final String msg = line;
-                    for (MessageListener l : listeners) l.onMessage(msg);
+                System.out.printf("[PORT 1 - WIRELESS] %s active on port %d. Waiting for telemetry client...%n", bridgeName, port);
+                while (true) {
+                    Socket client = server.accept();
+                    out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true);
+                    in  = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                    connected = true;
+                    System.out.printf("[PORT 1 - WIRELESS] Client connected to %s on port %d%n", bridgeName, port);
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        for (MessageListener l : listeners) l.onMessage(line);
+                    }
+                    connected = false;
+                    System.out.printf("[PORT 1 - WIRELESS] Client disconnected from %s%n", bridgeName);
                 }
             } catch (IOException e) {
-                System.out.println("[LINK ERROR] Port " + port + ": " + e.getMessage());
+                System.out.printf("[PORT 1 ERROR] %s (port %d): %s%n", bridgeName, port, e.getMessage());
             }
         }
 
@@ -140,5 +161,184 @@ public class CpsDomain {
         public boolean isConnected() { return connected; }
         public void addMessageListener(MessageListener l) { listeners.add(l); }
     }
-}
 
+    // --- 5. PORT 2: PHYSICAL TERMINAL BUS BRIDGE (Workspace Pin Netlist Tap) ---
+    public static class PhysicalTerminalBusBridge {
+        private final int port;
+        private final Map<String, Board> boards;
+        private final List<Wire> wires;
+        private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
+        private volatile boolean isRunning = true;
+
+        public PhysicalTerminalBusBridge(int port, Map<String, Board> boards, List<Wire> wires) {
+            this.port = port;
+            this.boards = boards;
+            this.wires = wires;
+            new Thread(this::startServer, "TerminalBusBridge-" + port).start();
+        }
+
+        private void startServer() {
+            try (ServerSocket server = new ServerSocket(port)) {
+                System.out.printf("[PORT 2 - TERMINALS] Physical Terminal Bus open on port %d! Waiting for DAQ/testbed...%n", port);
+                while (isRunning) {
+                    Socket client = server.accept();
+                    new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress()).start();
+                }
+            } catch (IOException e) {
+                System.out.printf("[PORT 2 ERROR] Terminal bridge (port %d): %s%n", port, e.getMessage());
+            }
+        }
+
+        private void handleClient(Socket client) {
+            System.out.printf("[PORT 2 - TERMINALS] Physical I/O Testbed tapped into terminal bus from %s%n", client.getRemoteSocketAddress());
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                 PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true)) {
+                
+                activeClients.add(out);
+                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + port + "}");
+                
+                String line;
+                while ((line = in.readLine()) != null) {
+                    processTerminalCommand(line.trim(), out);
+                }
+            } catch (IOException ignored) {
+            } finally {
+                System.out.println("[PORT 2 - TERMINALS] Testbed tap disconnected.");
+            }
+        }
+
+        /**
+         * Supported commands on Port 2:
+         * 1. SET <board> <pin> <voltage>   -> e.g. "SET PIR_MotionSensor DATA 3.3"
+         * 2. READ <board> <pin>            -> e.g. "READ LightRelay IN_DC"
+         * 3. SNAPSHOT                      -> dumps all pin voltages in the workspace netlist
+         * 4. JSON: {"cmd":"SET_PIN","board":"PIR_MotionSensor","pin":"DATA","voltage":3.3}
+         */
+        public void processTerminalCommand(String cmd, PrintWriter responder) {
+            if (cmd.isEmpty()) return;
+
+            // Handle JSON commands from GUIs
+            if (cmd.startsWith("{") && cmd.endsWith("}")) {
+                handleJsonTerminalCommand(cmd, responder);
+                return;
+            }
+
+            // Handle plain-text terminal commands
+            String[] tokens = cmd.split("\\s+");
+            String action = tokens[0].toUpperCase();
+
+            switch (action) {
+                case "SET" -> {
+                    // SET <board> <pin> <voltage>
+                    if (tokens.length >= 4) {
+                        String bName = tokens[1];
+                        String pName = tokens[2];
+                        try {
+                            double v = Double.parseDouble(tokens[3]);
+                            Board b = boards.get(bName);
+                            if (b != null) {
+                                Pin p = b.getPin(pName);
+                                if (p != null) {
+                                    p.setVoltage(v);
+                                    responder.printf("{\"status\":\"OK\",\"action\":\"SET\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}%n",
+                                        bName, pName, v, p.digitalState);
+                                    broadcastTerminalEvent(String.format("{\"event\":\"PIN_CHANGED\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}",
+                                        bName, pName, v, p.digitalState), responder);
+                                } else responder.printf("{\"status\":\"ERR\",\"msg\":\"Pin not found: %s\"}%n", pName);
+                            } else responder.printf("{\"status\":\"ERR\",\"msg\":\"Board not found: %s\"}%n", bName);
+                        } catch (NumberFormatException e) {
+                            responder.println("{\"status\":\"ERR\",\"msg\":\"Invalid voltage value\"}");
+                        }
+                    }
+                }
+                case "READ" -> {
+                    // READ <board> <pin>
+                    if (tokens.length >= 3) {
+                        String bName = tokens[1];
+                        String pName = tokens[2];
+                        Board b = boards.get(bName);
+                        if (b != null) {
+                            Pin p = b.getPin(pName);
+                            if (p != null) {
+                                responder.printf("{\"status\":\"OK\",\"action\":\"READ\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}%n",
+                                    bName, pName, p.voltage, p.digitalState);
+                            } else responder.printf("{\"status\":\"ERR\",\"msg\":\"Pin not found: %s\"}%n", pName);
+                        } else responder.printf("{\"status\":\"ERR\",\"msg\":\"Board not found: %s\"}%n", bName);
+                    }
+                }
+                case "SNAPSHOT" -> {
+                    responder.println(getNetlistSnapshotJson());
+                }
+                default -> responder.println("{\"status\":\"ERR\",\"msg\":\"Unknown terminal command\"}");
+            }
+        }
+
+        private void handleJsonTerminalCommand(String json, PrintWriter responder) {
+            // Check for SET_PIN
+            if (json.contains("\"cmd\":\"SET_PIN\"") || json.contains("\"SET_PIN\"")) {
+                String bName = extractJsonVal(json, "board");
+                String pName = extractJsonVal(json, "pin");
+                double v = extractJsonDouble(json, "voltage", 0.0);
+                Board b = boards.get(bName);
+                if (b != null) {
+                    Pin p = b.getPin(pName);
+                    if (p != null) {
+                        p.setVoltage(v);
+                        responder.printf("{\"status\":\"OK\",\"action\":\"SET\",\"terminal\":\"%s.%s\",\"voltage\":%.3f}%n", bName, pName, v);
+                        broadcastTerminalEvent(String.format("{\"event\":\"PIN_CHANGED\",\"terminal\":\"%s.%s\",\"voltage\":%.3f,\"state\":\"%s\"}",
+                            bName, pName, v, p.digitalState), responder);
+                        return;
+                    }
+                }
+                responder.println("{\"status\":\"ERR\",\"msg\":\"Board or Pin not found\"}");
+            } else if (json.contains("\"SNAPSHOT\"")) {
+                responder.println(getNetlistSnapshotJson());
+            }
+        }
+
+        public String getNetlistSnapshotJson() {
+            StringBuilder sb = new StringBuilder("{\"type\":\"NETLIST_SNAPSHOT\",\"terminals\":{");
+            boolean firstB = true;
+            for (Map.Entry<String, Board> be : boards.entrySet()) {
+                String bName = be.getKey();
+                Board b = be.getValue();
+                for (Map.Entry<String, Pin> pe : b.pins.entrySet()) {
+                    if (!firstB) sb.append(",");
+                    firstB = false;
+                    sb.append(String.format("\"%s.%s\":{\"voltage\":%.3f,\"state\":\"%s\",\"mode\":\"%s\"}",
+                        bName, pe.getKey(), pe.getValue().voltage, pe.getValue().digitalState, pe.getValue().mode));
+                }
+            }
+            sb.append("}}");
+            return sb.toString();
+        }
+
+        public void broadcastTerminalEvent(String jsonMsg, PrintWriter source) {
+            for (PrintWriter client : activeClients) {
+                if (client != source) {
+                    client.println(jsonMsg);
+                }
+            }
+        }
+
+        public void broadcastNetlistTick() {
+            String snapshot = getNetlistSnapshotJson();
+            for (PrintWriter client : activeClients) {
+                client.println(snapshot);
+            }
+        }
+
+        private String extractJsonVal(String j, String k) {
+            String s = "\"" + k + "\":\""; int i = j.indexOf(s);
+            if (i < 0) return ""; i += s.length(); int e = j.indexOf('"', i);
+            return e < 0 ? "" : j.substring(i, e);
+        }
+
+        private double extractJsonDouble(String j, String k, double def) {
+            String s = "\"" + k + "\":"; int i = j.indexOf(s);
+            if (i < 0) return def; i += s.length(); int e = i;
+            while (e < j.length() && (Character.isDigit(j.charAt(e)) || j.charAt(e) == '.' || j.charAt(e) == '-')) e++;
+            try { return Double.parseDouble(j.substring(i, e)); } catch (Exception x) { return def; }
+        }
+    }
+}

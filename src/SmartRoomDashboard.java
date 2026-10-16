@@ -30,6 +30,14 @@ public class SmartRoomDashboard extends JFrame {
     private PrintWriter  out;
     private BufferedReader in_br;
     private volatile boolean connected = false;
+
+    // PORT 2: Direct Physical Terminal Bus Tap (defaults to port + 1 = 9091)
+    private Socket       terminalSocket;
+    private PrintWriter  terminalOut;
+    private BufferedReader terminalIn_br;
+    private volatile boolean terminalConnected = false;
+    private final int terminalPort;
+
     private final String host; private final int port;
 
     // ─── Parsed telemetry state ───────────────────────────────────────────────
@@ -63,6 +71,7 @@ public class SmartRoomDashboard extends JFrame {
     public SmartRoomDashboard(String host, int port) {
         super("Smart Room Dashboard — CPS Sensor Fusion");
         this.host = host; this.port = port;
+        this.terminalPort = port + 1; // e.g., 9091
         buildUI();
         startUiTimer();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -176,21 +185,25 @@ public class SmartRoomDashboard extends JFrame {
     }
 
     private void sendSensorJson() {
-        double radarV = pirBtn.isSelected()
-            ? 0.0                                     // PIR overrides radar slot?  No — independent
-            : 0.0;
-        // Build the command packet
         boolean pirOn   = pirBtn.isSelected();
         boolean doorOn  = doorBtn.isSelected();
         boolean radarOn = radarBtn.isSelected();
         int     conf    = radarSlider.getValue();
+        double  radarV  = radarOn ? (conf / 100.0 * 3.3) : 0.0;
 
-        // Translate to voltage commands for the board pins
+        // 1. PRIMARY: Drive physical terminals directly via Port 2 (Workspace Terminal Bus)
+        if (terminalConnected && terminalOut != null) {
+            terminalOut.printf("SET PIR_MotionSensor DATA %.1f%n", pirOn ? 3.3 : 0.0);
+            terminalOut.printf("SET DoorContactSensor STATE %.1f%n", doorOn ? 3.3 : 0.0);
+            terminalOut.printf("SET MillimeterWaveRadar PRESENCE_SIG %.3f%n", radarV);
+            logPanel.add(String.format("→ [PORT 2 TERMINALS] SET PIR=%.1fV, DOOR=%.1fV, RADAR=%.2fV",
+                pirOn ? 3.3 : 0.0, doorOn ? 3.3 : 0.0, radarV));
+        }
+
+        // 2. FALLBACK/PARALLEL: Forward to Port 1 radio bridge
         sendRaw(String.format(
             "{\"cmd\":\"SET_PINS\",\"GPIO_12\":%.1f,\"GPIO_14\":%.1f,\"GPIO_27\":%.3f}",
-            pirOn  ? 3.3 : 0.0,
-            doorOn ? 3.3 : 0.0,
-            radarOn ? (conf / 100.0 * 3.3) : 0.0
+            pirOn ? 3.3 : 0.0, doorOn ? 3.3 : 0.0, radarV
         ));
     }
 
@@ -199,18 +212,45 @@ public class SmartRoomDashboard extends JFrame {
         new Thread(() -> {
             try {
                 setStatus("Connecting...", AMBER);
+                
+                // Connect to Port 1: Wireless Telemetry Radio
                 socket = new Socket(host, port);
                 out   = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
                 in_br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 connected = true;
-                setStatus("● CONNECTED  →  " + host + ":" + port, GREEN);
-                logPanel.add("Connected to CPS workbench at " + host + ":" + port);
+                logPanel.add("[PORT 1] Connected to Radio Bridge on port " + port);
+
+                // Connect to Port 2: Physical Netlist Terminal Bus
+                try {
+                    terminalSocket = new Socket(host, terminalPort);
+                    terminalOut = new PrintWriter(new OutputStreamWriter(terminalSocket.getOutputStream()), true);
+                    terminalIn_br = new BufferedReader(new InputStreamReader(terminalSocket.getInputStream()));
+                    terminalConnected = true;
+                    logPanel.add("[PORT 2] Tapped into Physical Netlist Terminal Bus on port " + terminalPort);
+                    new Thread(this::readTerminalLoop, "TerminalReader").start();
+                } catch (IOException e) {
+                    logPanel.add("[PORT 2 NOTICE] Terminal bus (port " + terminalPort + ") not open yet. Using Port 1.");
+                }
+
+                setStatus("● CONNECTED  →  Radio:" + port + " | Terminals:" + terminalPort, GREEN);
                 new Thread(this::readLoop, "DashReader").start();
             } catch (IOException ex) {
                 setStatus("● FAILED: " + ex.getMessage(), RED_C);
                 logPanel.add("[ERROR] " + ex.getMessage());
             }
         }, "DashConnect").start();
+    }
+
+    private void readTerminalLoop() {
+        try {
+            String line;
+            while (terminalConnected && (line = terminalIn_br.readLine()) != null) {
+                final String msg = line;
+                logPanel.add("← [PORT 2] " + msg);
+            }
+        } catch (IOException ignored) {
+            terminalConnected = false;
+        }
     }
 
     private void readLoop() {
