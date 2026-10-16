@@ -17,6 +17,7 @@ public class CpsPersistence {
         public String workspaceName;
         public Map<String, CpsDomain.Board> boards = new LinkedHashMap<>();
         public List<CpsDomain.Wire> wires = new ArrayList<>();
+        public int terminalPort = 0;
     }
 
     // =========================================================================
@@ -27,12 +28,23 @@ public class CpsPersistence {
                                   Map<String, CpsDomain.Board> boards,
                                   List<CpsDomain.Wire> wires,
                                   File targetFile) throws IOException {
+        saveLayout(workspaceName, boards, wires, 0, targetFile);
+    }
+
+    public static void saveLayout(String workspaceName,
+                                  Map<String, CpsDomain.Board> boards,
+                                  List<CpsDomain.Wire> wires,
+                                  int terminalPort,
+                                  File targetFile) throws IOException {
         ensureParentDir(targetFile);
 
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("format", "CPS_LAYOUT_V1");
         root.put("workspace", workspaceName);
         root.put("savedAt", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
+        if (terminalPort > 0) {
+            root.put("terminalPort", terminalPort);
+        }
 
         // Serialize boards
         List<Map<String, Object>> boardsList = new ArrayList<>();
@@ -77,6 +89,9 @@ public class CpsPersistence {
         Map<String, Object> root = (Map<String, Object>) parsed;
         LayoutData layout = new LayoutData();
         layout.workspaceName = (String) root.getOrDefault("workspace", "RestoredWorkspace");
+        if (root.containsKey("terminalPort")) {
+            layout.terminalPort = ((Number) root.get("terminalPort")).intValue();
+        }
 
         // 1. Reconstitute Boards
         List<Object> boardsList = (List<Object>) root.get("boards");
@@ -197,6 +212,11 @@ public class CpsPersistence {
             bm.put("firmware", fwm);
         }
 
+        // Serialize radio telemetry bridge port (if active)
+        if (b.radioBridge != null) {
+            bm.put("radioPort", b.radioBridge.getPort());
+        }
+
         return bm;
     }
 
@@ -273,6 +293,12 @@ public class CpsPersistence {
                     pirPin, doorPin, radarPin, lightPin, hvacPin, hysSec, radarThresh);
                 board.flashFirmware(fw);
             }
+        }
+
+        // Restore radio telemetry bridge if recorded
+        if (bm.containsKey("radioPort")) {
+            int rPort = ((Number) bm.get("radioPort")).intValue();
+            board.enableRadioBridge(rPort);
         }
 
         return board;

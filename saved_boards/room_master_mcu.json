@@ -1,6 +1,6 @@
 {
   "format": "CPS_BOARD_V1",
-  "savedAt": "2026-10-16 16:22:09",
+  "savedAt": "2026-10-17 04:38:54",
   "board": {
     "id": "RoomMasterMCU",
     "model": "ESP32_WROOM",
@@ -51,7 +51,7 @@
       "name": "SmartRoom_Firmware_v2.0",
       "class": "SmartRoomFirmware",
       "parameters": {
-        "hysteresisSec": 45,
+        "hysteresisSec": 10,
         "radarThresholdV": 1.5,
         "pirPin": "GPIO_12",
         "doorPin": "GPIO_14",
@@ -59,6 +59,7 @@
         "lightRelayPin": "GPIO_21",
         "hvacRelayPin": "GPIO_22"
       }
-    }
+    },
+    "radioPort": 9090
   }
 }

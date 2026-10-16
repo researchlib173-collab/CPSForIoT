@@ -98,7 +98,7 @@ public class SmartRoomCLI {
                             // workspace terminal link tcp 9091
                             if (parts[2].equalsIgnoreCase("link")) {
                                 int port = Integer.parseInt(parts[4]);
-                                terminalBridge = new CpsDomain.PhysicalTerminalBusBridge(port, boards(), wires);
+                                terminalBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
                                 System.out.printf("[PORT 2 - TERMINALS] Physical Netlist Terminal Bus open on port %d%n", port);
                             }
                         }
@@ -123,9 +123,10 @@ public class SmartRoomCLI {
                             String filename = parts[2];
                             if (!filename.endsWith(".json")) filename += ".json";
                             File f = resolveLayoutFile(filename);
-                            CpsPersistence.saveLayout(activeWorkspace, boards(), wires, f);
-                            System.out.printf("[LAYOUT] Successfully saved workspace layout '%s' (%d boards, %d wires) to: %s%n",
-                                activeWorkspace, boards().size(), wires.size(), f.getPath());
+                            int tPort = (terminalBridge != null) ? terminalBridge.getPort() : 0;
+                            CpsPersistence.saveLayout(activeWorkspace, boards(), wires, tPort, f);
+                            System.out.printf("[LAYOUT] Successfully saved workspace layout '%s' (%d boards, %d wires, terminalPort=%d) to: %s%n",
+                                activeWorkspace, boards().size(), wires.size(), tPort, f.getPath());
                         }
                         case "load" -> {
                             if (parts.length < 3) {
@@ -143,6 +144,15 @@ public class SmartRoomCLI {
                                 if (b.getFlashedFirmware() instanceof SmartRoomFirmware srf) {
                                     fusionFirmware = srf;
                                 }
+                            }
+                            if (data.terminalPort > 0) {
+                                if (terminalBridge == null || terminalBridge.getPort() != data.terminalPort) {
+                                    terminalBridge = new CpsDomain.PhysicalTerminalBusBridge(data.terminalPort, boards(), wires);
+                                } else {
+                                    terminalBridge.updateContext(boards(), wires);
+                                }
+                            } else if (terminalBridge != null) {
+                                terminalBridge.updateContext(boards(), wires);
                             }
                             System.out.printf("[LAYOUT] Successfully loaded layout '%s' (%d boards, %d wires) from: %s%n",
                                 activeWorkspace, data.boards.size(), data.wires.size(), f.getPath());
@@ -415,8 +425,19 @@ public class SmartRoomCLI {
         if (!isRunning) return;
         for (CpsDomain.Wire w : wires) {
             if (w.pinA != null && w.pinB != null) {
-                w.pinB.voltage      = w.pinA.voltage;
-                w.pinB.digitalState = w.pinA.digitalState;
+                boolean aIsInput = (w.pinA.mode == CpsDomain.PinMode.DIGITAL_IN || w.pinA.mode == CpsDomain.PinMode.ANALOG_IN);
+                boolean bIsInput = (w.pinB.mode == CpsDomain.PinMode.DIGITAL_IN || w.pinB.mode == CpsDomain.PinMode.ANALOG_IN);
+                
+                if (bIsInput && !aIsInput) {
+                    w.pinB.voltage = w.pinA.voltage;
+                    w.pinB.digitalState = w.pinA.digitalState;
+                } else if (aIsInput && !bIsInput) {
+                    w.pinA.voltage = w.pinB.voltage;
+                    w.pinA.digitalState = w.pinB.digitalState;
+                } else {
+                    w.pinB.voltage = w.pinA.voltage;
+                    w.pinB.digitalState = w.pinA.digitalState;
+                }
             }
         }
         for (CpsDomain.Board b : boards().values()) b.tickLogic();

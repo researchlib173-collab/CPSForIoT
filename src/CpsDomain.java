@@ -179,7 +179,7 @@ public class CpsDomain {
         public McuHAL getHal() { return hal; }
 
         public void enableRadioBridge(int port) {
-            this.radioBridge = new ExternalAppletBridge(port, "RadioBridge-" + id);
+            this.radioBridge = ExternalAppletBridge.getOrCreate(port, "RadioBridge-" + id);
             this.socketBridge = this.radioBridge;
         }
 
@@ -205,6 +205,12 @@ public class CpsDomain {
 
     // --- 4. PORT 1: WIRELESS IOT BRIDGE (Wi-Fi / Bluetooth Radio) ---
     public static class ExternalAppletBridge {
+        private static final Map<Integer, ExternalAppletBridge> activeBridges = new ConcurrentHashMap<>();
+
+        public static synchronized ExternalAppletBridge getOrCreate(int port, String bridgeName) {
+            return activeBridges.computeIfAbsent(port, p -> new ExternalAppletBridge(p, bridgeName));
+        }
+
         private final int port;
         private final String bridgeName;
         private PrintWriter out;
@@ -217,7 +223,9 @@ public class CpsDomain {
         public ExternalAppletBridge(int port, String bridgeName) {
             this.port = port;
             this.bridgeName = bridgeName;
-            new Thread(this::startServer, bridgeName + "-" + port).start();
+            Thread t = new Thread(this::startServer, bridgeName + "-" + port);
+            t.setDaemon(true);
+            t.start();
         }
 
         public ExternalAppletBridge(int port) {
@@ -247,14 +255,28 @@ public class CpsDomain {
 
         public void transmit(String data) { if (out != null && connected) out.println(data); }
         public boolean isConnected() { return connected; }
+        public int getPort() { return port; }
         public void addMessageListener(MessageListener l) { listeners.add(l); }
     }
 
     // --- 5. PORT 2: PHYSICAL TERMINAL BUS BRIDGE (Workspace Pin Netlist Tap) ---
     public static class PhysicalTerminalBusBridge {
+        private static final Map<Integer, PhysicalTerminalBusBridge> activeBridges = new ConcurrentHashMap<>();
+
+        public static synchronized PhysicalTerminalBusBridge getOrCreate(int port, Map<String, Board> boards, List<Wire> wires) {
+            PhysicalTerminalBusBridge existing = activeBridges.get(port);
+            if (existing != null) {
+                existing.updateContext(boards, wires);
+                return existing;
+            }
+            PhysicalTerminalBusBridge created = new PhysicalTerminalBusBridge(port, boards, wires);
+            activeBridges.put(port, created);
+            return created;
+        }
+
         private final int port;
-        private final Map<String, Board> boards;
-        private final List<Wire> wires;
+        private Map<String, Board> boards;
+        private List<Wire> wires;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
         private volatile boolean isRunning = true;
 
@@ -262,7 +284,16 @@ public class CpsDomain {
             this.port = port;
             this.boards = boards;
             this.wires = wires;
-            new Thread(this::startServer, "TerminalBusBridge-" + port).start();
+            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + port);
+            t.setDaemon(true);
+            t.start();
+        }
+
+        public int getPort() { return port; }
+
+        public void updateContext(Map<String, Board> newBoards, List<Wire> newWires) {
+            this.boards = newBoards;
+            this.wires = newWires;
         }
 
         private void startServer() {
@@ -270,7 +301,9 @@ public class CpsDomain {
                 System.out.printf("[PORT 2 - TERMINALS] Physical Terminal Bus open on port %d! Waiting for DAQ/testbed...%n", port);
                 while (isRunning) {
                     Socket client = server.accept();
-                    new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress()).start();
+                    Thread ct = new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress());
+                    ct.setDaemon(true);
+                    ct.start();
                 }
             } catch (IOException e) {
                 System.out.printf("[PORT 2 ERROR] Terminal bridge (port %d): %s%n", port, e.getMessage());
