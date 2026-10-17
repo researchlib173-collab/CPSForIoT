@@ -33,67 +33,106 @@ public class AssetGenerator {
         System.out.println("[ASSETS] Generated 12 component images in assets/");
     }
 
-    // 1. ESP32-WROOM DevKit (400 x 560 px)
+    // 1. ESP32-WROOM DevKit (400 x 560 px, 30-pin Standard Dual In-Line)
     private static void generateESP32(File file) throws IOException {
         int w = 400, h = 560;
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = setupGraphics(img);
 
-        // PCB Board (Dark matte black/blue)
-        g2.setColor(new Color(24, 28, 38));
-        g2.fillRoundRect(30, 20, 340, 520, 16, 16);
-        g2.setColor(new Color(60, 75, 100));
+        // PCB Board (Dark matte black/blue finish)
+        g2.setColor(new Color(22, 26, 36));
+        g2.fillRoundRect(25, 15, 350, 530, 16, 16);
+        g2.setColor(new Color(55, 70, 95));
         g2.setStroke(new BasicStroke(2.0f));
-        g2.drawRoundRect(30, 20, 340, 520, 16, 16);
+        g2.drawRoundRect(25, 15, 350, 530, 16, 16);
 
         // Top PCB Antenna (Serpentine gold trace on dark PCB)
         g2.setColor(new Color(15, 18, 24));
-        g2.fillRect(70, 30, 260, 60);
+        g2.fillRect(70, 25, 260, 65);
         g2.setColor(new Color(212, 175, 55)); // Gold trace
         g2.setStroke(new BasicStroke(3.0f));
-        int ax = 90, ay = 45;
-        g2.drawPolyline(new int[]{ax, ax+20, ax+20, ax+40, ax+40, ax+60, ax+60, ax+80, ax+80, ax+100, ax+100, ax+120, ax+120, ax+140, ax+140, ax+160, ax+160, ax+180, ax+180, ax+200, ax+200, ax+220},
+        int ax = 85, ay = 40;
+        g2.drawPolyline(new int[]{ax, ax+20, ax+20, ax+40, ax+40, ax+60, ax+60, ax+80, ax+80, ax+100, ax+100, ax+120, ax+120, ax+140, ax+140, ax+160, ax+160, ax+180, ax+180, ax+200, ax+200, ax+230},
                         new int[]{ay+25, ay+25, ay, ay, ay+25, ay+25, ay, ay, ay+25, ay+25, ay, ay, ay+25, ay+25, ay, ay, ay+25, ay+25, ay, ay, ay+25, ay+25}, 22);
 
         // Metal RF Shield Can
-        g2.setColor(new Color(190, 195, 205));
-        g2.fillRoundRect(80, 110, 240, 190, 8, 8);
+        g2.setColor(new Color(195, 200, 210));
+        g2.fillRoundRect(102, 110, 196, 185, 8, 8);
         g2.setColor(new Color(140, 145, 155));
         g2.setStroke(new BasicStroke(1.5f));
-        g2.drawRoundRect(80, 110, 240, 190, 8, 8);
+        g2.drawRoundRect(102, 110, 196, 185, 8, 8);
 
         // Can Label
         g2.setColor(new Color(40, 45, 55));
-        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
-        g2.drawString("ESP32-WROOM-32", 110, 170);
-        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
-        g2.drawString("Wi-Fi + BT + BLE MCU", 125, 200);
-        g2.drawString("FCC ID: 2AC7Z-ESPWROOM32", 105, 230);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
+        g2.drawString("ESP32-WROOM-32", 125, 165);
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
+        g2.drawString("Wi-Fi + BT + BLE MCU", 132, 195);
+        g2.drawString("FCC ID: 2AC7Z-ESPWROOM32", 112, 225);
 
         // Micro-USB Port at Bottom
         g2.setColor(new Color(160, 165, 175));
-        g2.fillRoundRect(150, 490, 100, 45, 4, 4);
+        g2.fillRoundRect(155, 485, 90, 50, 4, 4);
         g2.setColor(new Color(40, 45, 55));
-        g2.fillRect(165, 505, 70, 20);
+        g2.fillRect(168, 500, 64, 22);
 
         // Buttons EN & BOOT
         g2.setColor(new Color(220, 220, 225));
-        g2.fillRoundRect(60, 480, 40, 30, 4, 4);
-        g2.fillRoundRect(300, 480, 40, 30, 4, 4);
+        g2.fillRoundRect(85, 475, 45, 30, 4, 4);
+        g2.fillRoundRect(270, 475, 45, 30, 4, 4);
         g2.setColor(Color.WHITE);
         g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
-        g2.drawString("EN", 72, 470);
-        g2.drawString("BOOT", 305, 470);
+        g2.drawString("EN", 98, 465);
+        g2.drawString("BOOT", 276, 465);
 
         // Status LEDs
         g2.setColor(new Color(255, 60, 60)); // Red PWR LED
-        g2.fillOval(120, 330, 10, 10);
+        g2.fillOval(130, 325, 10, 10);
         g2.setColor(new Color(0, 229, 255)); // Blue GPIO2 LED
-        g2.fillOval(145, 330, 10, 10);
+        g2.fillOval(160, 325, 10, 10);
+        g2.setColor(new Color(160, 175, 200));
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 9));
+        g2.drawString("PWR", 125, 345);
+        g2.drawString("IO2", 158, 345);
 
-        // Left & Right Pin Headers (Dual In-Line 19 pins each)
-        drawPinHeaderColumn(g2, 42, 50, 19, 24, true);
-        drawPinHeaderColumn(g2, 358, 50, 19, 24, false);
+        // 30-Pin Standard Header (15 Pins Left, 15 Pins Right)
+        String[] leftPins = {"EN", "VP", "VN", "34", "35", "32", "33", "25", "26", "27", "14", "12", "13", "GND", "VIN"};
+        String[] rightPins = {"23", "22", "TX0", "RX0", "21", "19", "18", "5", "17", "16", "4", "0", "2", "15", "3V3"};
+
+        int startY = 80;
+        int pitch = 26;
+        int count = 15;
+
+        // Draw Left Header Column: pads at x = 40 (u = 0.100), labels at x = 55
+        for (int i = 0; i < count; i++) {
+            int py = startY + i * pitch;
+            // Gold pad
+            g2.setColor(new Color(212, 175, 55));
+            g2.fillOval(40 - 6, py - 6, 12, 12);
+            g2.setColor(new Color(25, 30, 40));
+            g2.fillOval(40 - 3, py - 3, 6, 6);
+
+            // Silkscreen text
+            g2.setColor(new Color(230, 235, 245));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
+            g2.drawString(leftPins[i], 54, py + 4);
+        }
+
+        // Draw Right Header Column: pads at x = 360 (u = 0.900), labels at x = 346 (right-aligned)
+        for (int i = 0; i < count; i++) {
+            int py = startY + i * pitch;
+            // Gold pad
+            g2.setColor(new Color(212, 175, 55));
+            g2.fillOval(360 - 6, py - 6, 12, 12);
+            g2.setColor(new Color(25, 30, 40));
+            g2.fillOval(360 - 3, py - 3, 6, 6);
+
+            // Silkscreen text
+            g2.setColor(new Color(230, 235, 245));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
+            int tw = g2.getFontMetrics().stringWidth(rightPins[i]);
+            g2.drawString(rightPins[i], 346 - tw, py + 4);
+        }
 
         g2.dispose();
         ImageIO.write(img, "PNG", file);

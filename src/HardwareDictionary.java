@@ -291,6 +291,23 @@ public class HardwareDictionary {
         board.getPin("3V3").setVoltage(3.3);
         if (board.getPin("VIN") != null) board.getPin("VIN").setVoltage(5.0);
 
+        board.imagePath = "assets/esp32_wroom.png";
+
+        // Pre-calibrated pin positions for standard 30-pin ESP32-WROOM DevKit (400x560 px):
+        String[] leftPins = {"EN", "GPIO_36", "GPIO_39", "GPIO_34", "GPIO_35", "GPIO_32", "GPIO_33",
+                             "GPIO_25", "GPIO_26", "GPIO_27", "GPIO_14", "GPIO_12", "GPIO_13", "GND", "VIN"};
+        for (int i = 0; i < leftPins.length; i++) {
+            double v = (80.0 + i * 26.0) / 560.0;
+            board.pinPositions.put(leftPins[i], new java.awt.geom.Point2D.Double(0.100, Math.round(v * 1000.0) / 1000.0));
+        }
+
+        String[] rightPins = {"GPIO_23", "GPIO_22", "GPIO_01", "GPIO_03", "GPIO_21", "GPIO_19", "GPIO_18",
+                              "GPIO_05", "GPIO_17", "GPIO_16", "GPIO_04", "GPIO_00", "GPIO_02", "GPIO_15", "3V3"};
+        for (int i = 0; i < rightPins.length; i++) {
+            double v = (80.0 + i * 26.0) / 560.0;
+            board.pinPositions.put(rightPins[i], new java.awt.geom.Point2D.Double(0.900, Math.round(v * 1000.0) / 1000.0));
+        }
+
         board.baseLogic = () -> {
             if (board.socketBridge != null) {
                 String payload = String.format(
@@ -362,5 +379,81 @@ public class HardwareDictionary {
             board.setProperty("load_active", relay.isLoadActive());
         };
         return board;
+    }
+
+    public static CpsDomain.Board createPIRSensor(String name) {
+        CpsDomain.Board board = new CpsDomain.Board(name, "PIR_SENSOR");
+        board.addPin("DATA", CpsDomain.PinMode.DIGITAL_OUT);
+        board.addPin("VCC",  CpsDomain.PinMode.DIGITAL_OUT);
+        board.addPin("GND",  CpsDomain.PinMode.DIGITAL_OUT);
+        board.imagePath = "assets/pir_motion_sensor.png";
+        board.pinPositions.put("VCC",  new java.awt.geom.Point2D.Double(0.36, 0.83));
+        board.pinPositions.put("DATA", new java.awt.geom.Point2D.Double(0.50, 0.83));
+        board.pinPositions.put("GND",  new java.awt.geom.Point2D.Double(0.64, 0.83));
+        PIRSensor pir = new PIRSensor(name + "_pir");
+        board.addComponent(pir);
+        board.baseLogic = () -> {
+            pir.tickLogic();
+            board.getPin("DATA").setVoltage(pir.getDoubleProperty("v_out", 0.0));
+        };
+        return board;
+    }
+
+    public static CpsDomain.Board createDoorSensor(String name) {
+        CpsDomain.Board board = new CpsDomain.Board(name, "DOOR_CONTACT");
+        board.addPin("STATE", CpsDomain.PinMode.DIGITAL_OUT);
+        board.imagePath = "assets/magnetic_door_sensor.png";
+        DoorContactSensor door = new DoorContactSensor(name + "_door");
+        board.addComponent(door);
+        board.baseLogic = () -> {
+            door.tickLogic();
+            board.getPin("STATE").setVoltage(door.getDoubleProperty("v_out", 0.0));
+        };
+        return board;
+    }
+
+    public static CpsDomain.Board createRadarSensor(String name) {
+        CpsDomain.Board board = new CpsDomain.Board(name, "MMWAVE_RADAR");
+        board.addPin("PRESENCE_SIG", CpsDomain.PinMode.ANALOG_IN);
+        board.imagePath = "assets/radar_sensor.png";
+        MmWaveRadar radar = new MmWaveRadar(name + "_radar");
+        board.addComponent(radar);
+        board.baseLogic = () -> {
+            radar.tickLogic();
+            board.getPin("PRESENCE_SIG").setVoltage(radar.getDoubleProperty("v_out", 0.0));
+        };
+        return board;
+    }
+
+    public static CpsDomain.Board createLedModule(String name) {
+        CpsDomain.Board board = new CpsDomain.Board(name, "LED_MODULE");
+        board.addPin("ANODE",   CpsDomain.PinMode.DIGITAL_IN);
+        board.addPin("CATHODE", CpsDomain.PinMode.DIGITAL_IN);
+        board.imagePath = "assets/led_module.png";
+        board.pinPositions.put("ANODE",   new java.awt.geom.Point2D.Double(0.361, 0.833));
+        board.pinPositions.put("CATHODE", new java.awt.geom.Point2D.Double(0.639, 0.833));
+        LED led = new LED(name + "_led");
+        board.addComponent(led);
+        board.baseLogic = () -> {
+            double v = board.getPin("ANODE").voltage - board.getPin("CATHODE").voltage;
+            led.setProperty("v_in", Math.max(0.0, v));
+            led.tickLogic();
+        };
+        return board;
+    }
+
+    public static CpsDomain.Board createComponentBoard(String type, String name) {
+        String t = (type != null) ? type.trim().toUpperCase() : "CUSTOM";
+        return switch (t) {
+            case "ESP32", "ESP32_WROOM"           -> createESP32(name);
+            case "NODEMCU", "ESP8266"             -> createNodeMCU(name);
+            case "ARDUINO", "ARDUINO_UNO"         -> createArduinoUno(name);
+            case "RELAY", "RELAY_HV", "RELAY_HV_MODULE" -> createRelayModule(name);
+            case "PIR", "PIR_SENSOR", "MOTION"   -> createPIRSensor(name);
+            case "DOOR", "DOOR_SENSOR", "CONTACT" -> createDoorSensor(name);
+            case "RADAR", "MMWAVE", "RADAR_SENSOR"-> createRadarSensor(name);
+            case "LED", "LED_MODULE"              -> createLedModule(name);
+            default                               -> new CpsDomain.Board(name, t);
+        };
     }
 }

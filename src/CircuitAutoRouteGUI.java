@@ -427,8 +427,8 @@ public class CircuitAutoRouteGUI extends JFrame {
         private Rectangle getBoardBounds(CpsDomain.Board b) {
             BufferedImage img = imageCache.get(b.getId());
             if (img != null) {
-                // Fixed target display width for images to keep layout balanced
-                int displayW = 200;
+                // Target display width for images to keep layout balanced and pin headers clearly spaced
+                int displayW = 220;
                 int displayH = (int) Math.round((double) img.getHeight() * displayW / img.getWidth());
                 return new Rectangle(b.layoutX, b.layoutY, displayW, displayH);
             } else {
@@ -461,7 +461,14 @@ public class CircuitAutoRouteGUI extends JFrame {
                 // Alternate pins along Left and Right edges
                 boolean isLeft = (idx % 2 == 0);
                 int row = idx / 2;
-                int pinY = bounds.y + 42 + row * 26;
+                int totalRows = Math.max(1, (pinList.size() + 1) / 2);
+                int pinY;
+                if (img != null) {
+                    // Distribute safely within image bounds if an uncalibrated pin exists
+                    pinY = bounds.y + 20 + (int) Math.round((double) row / totalRows * (bounds.height - 40));
+                } else {
+                    pinY = bounds.y + 42 + row * 26;
+                }
 
                 int pinX = isLeft ? bounds.x + 8 : bounds.x + bounds.width - 8;
                 return new Point(pinX, pinY);
@@ -536,7 +543,8 @@ public class CircuitAutoRouteGUI extends JFrame {
                 for (String pid : b.pins.keySet()) {
                     Point pCoord = getAbsolutePinCoordinate(b, pid);
                     CpsDomain.Pin pin = b.getPin(pid);
-                    drawPinContact(g2, pCoord.x, pCoord.y, pid, pin, true);
+                    boolean isConnected = isPinConnected(b, pid);
+                    drawPinContact(g2, bounds, pCoord.x, pCoord.y, pid, pin, isConnected);
                 }
 
             } else {
@@ -633,32 +641,58 @@ public class CircuitAutoRouteGUI extends JFrame {
             }
         }
 
-        private void drawPinContact(Graphics2D g2, int px, int py, String pinId, CpsDomain.Pin pin, boolean showOverlay) {
+        private void drawPinContact(Graphics2D g2, Rectangle bounds, int px, int py, String pinId, CpsDomain.Pin pin, boolean isConnected) {
             // Calibrated contact dot
             boolean isHigh = (pin != null && pin.voltage > 2.0);
-            Color dotColor = isHigh ? new Color(0, 230, 118) : new Color(0, 229, 255);
+            Color dotColor;
+            if (isHigh) {
+                dotColor = new Color(0, 230, 118); // Active high signal
+            } else if (isConnected) {
+                dotColor = new Color(0, 229, 255); // Connected net
+            } else {
+                dotColor = new Color(212, 175, 55, 180); // Gold header solder pad
+            }
 
+            int dotR = isConnected ? 5 : 4;
             g2.setColor(dotColor);
-            g2.fillOval(px - 5, py - 5, 10, 10);
-            g2.setColor(Color.WHITE);
-            g2.setStroke(new BasicStroke(1.2f));
-            g2.drawOval(px - 5, py - 5, 10, 10);
+            g2.fillOval(px - dotR, py - dotR, dotR * 2, dotR * 2);
+            g2.setColor(isConnected ? Color.WHITE : new Color(30, 35, 45));
+            g2.setStroke(new BasicStroke(isConnected ? 1.2f : 1.0f));
+            g2.drawOval(px - dotR, py - dotR, dotR * 2, dotR * 2);
 
-            if (showPinLabels) {
-                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
+            // Badges: Show badge if connected OR if user enabled showPinLabels
+            if (isConnected || showPinLabels) {
+                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 9));
                 FontMetrics fm = g2.getFontMetrics();
                 int tw = fm.stringWidth(pinId);
+                int badgeH = 12;
 
-                // Small badge
-                g2.setColor(new Color(15, 20, 28, 220));
-                g2.fillRoundRect(px + 8, py - 7, tw + 6, 14, 4, 4);
-                g2.setColor(new Color(60, 75, 100));
+                // Determine whether pin is on the Left or Right half of the component board
+                boolean isLeft = (bounds != null) ? (px < bounds.x + bounds.width / 2) : true;
+                int bx = isLeft ? (px - tw - 8) : (px + 7);
+                int by = py - badgeH / 2;
+
+                // Badge background & border
+                g2.setColor(new Color(15, 20, 28, isConnected ? 230 : 180));
+                g2.fillRoundRect(bx, by, tw + 6, badgeH, 4, 4);
+                g2.setColor(isConnected ? (isHigh ? new Color(0, 230, 118) : new Color(0, 229, 255)) : new Color(60, 75, 100));
                 g2.setStroke(new BasicStroke(1.0f));
-                g2.drawRoundRect(px + 8, py - 7, tw + 6, 14, 4, 4);
+                g2.drawRoundRect(bx, by, tw + 6, badgeH, 4, 4);
 
-                g2.setColor(Color.WHITE);
-                g2.drawString(pinId, px + 11, py + 4);
+                // Badge text
+                g2.setColor(isConnected ? Color.WHITE : new Color(180, 195, 220));
+                g2.drawString(pinId, bx + 3, by + 9);
             }
+        }
+
+        private boolean isPinConnected(CpsDomain.Board b, String pinId) {
+            if (b == null || pinId == null) return false;
+            CpsDomain.Pin targetPin = b.getPin(pinId);
+            for (CpsDomain.Wire w : wires) {
+                if (w.pinA != null && (w.pinA == targetPin || (w.pinA.parentBoard == b && pinId.equalsIgnoreCase(w.pinA.pinId)))) return true;
+                if (w.pinB != null && (w.pinB == targetPin || (w.pinB.parentBoard == b && pinId.equalsIgnoreCase(w.pinB.pinId)))) return true;
+            }
+            return false;
         }
 
         private void drawComponentHeader(Graphics2D g2, int x, int y, int w, String id, String model, boolean hasImage) {

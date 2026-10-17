@@ -339,31 +339,41 @@ public class SmartRoomCLI {
                     CircuitAutoRouteGUI.launch(activeWorkspace, boards(), wires);
                 }
 
-                // ── import ESP32 as RoomMasterMCU ─────────────────────────────
+                // ── import ESP32 as RoomMasterMCU / import PIR as MotionDetector ─
                 case "import" -> {
                     String model = parts[1], name = parts[3]; // parts[2]="as"
-                    CpsDomain.Board b = switch (model.toUpperCase()) {
-                        case "ESP32"           -> HardwareDictionary.createESP32(name);
-                        case "NODEMCU"         -> HardwareDictionary.createNodeMCU(name);
-                        case "ARDUINO"         -> HardwareDictionary.createArduinoUno(name);
-                        case "RELAY_HV_MODULE" -> HardwareDictionary.createRelayModule(name);
-                        default                -> new CpsDomain.Board(name, model.toUpperCase());
-                    };
+                    CpsDomain.Board b = HardwareDictionary.createComponentBoard(model, name);
                     boards().put(name, b);
-                    System.out.printf("[IMPORTED]  %-18s → %s%n", model, name);
+                    System.out.printf("[IMPORTED]  %-18s → %s (Pins: %d)%n", model, name, b.pins.size());
                 }
 
-                // ── create board PIR_MotionSensor ─────────────────────────────
+                // ── create board <NAME> [MODEL] | create component <TYPE> <NAME> ─
                 case "create" -> {
+                    if (parts.length < 3) {
+                        System.out.println("[SYNTAX] create board <NAME> [MODEL] | create component <TYPE> <NAME>");
+                        return;
+                    }
                     if (parts[1].equalsIgnoreCase("board")) {
                         String name = parts[2];
-                        boards().put(name, new CpsDomain.Board(name, "CUSTOM"));
-                        System.out.printf("[CREATED]   Custom board: %s%n", name);
+                        String model = (parts.length > 3) ? parts[3] : "CUSTOM";
+                        CpsDomain.Board b = HardwareDictionary.createComponentBoard(model, name);
+                        boards().put(name, b);
+                        System.out.printf("[CREATED]   Board '%s' [%s] (Pins: %d)%n", name, b.model, b.pins.size());
+                    } else if (parts[1].equalsIgnoreCase("component")) {
+                        String type = parts[2];
+                        String name = parts[3];
+                        CpsDomain.Board b = HardwareDictionary.createComponentBoard(type, name);
+                        boards().put(name, b);
+                        System.out.printf("[CREATED]   Component '%s' [%s] (Pins: %d)%n", name, b.model, b.pins.size());
                     }
                 }
 
-                // ── add pin PIR_MotionSensor DATA DIGITAL_IN ──────────────────
+                // ── add pin <BOARD> <PIN> <MODE> | add component <BOARD> <TYPE> <ID> ─
                 case "add" -> {
+                    if (parts.length < 4) {
+                        System.out.println("[SYNTAX] add pin <BOARD> <PIN> <MODE> | add component <BOARD> <TYPE> <ID>");
+                        return;
+                    }
                     if (parts[1].equalsIgnoreCase("pin")) {
                         CpsDomain.Board b = boards().get(parts[2]);
                         if (b == null) { System.out.println("[ERR] Board not found: " + parts[2]); return; }
@@ -377,6 +387,24 @@ public class SmartRoomCLI {
                         };
                         b.addPin(pinId, mode);
                         System.out.printf("[PIN ADDED] %s.%s [%s]%n", parts[2], pinId, mode);
+                    } else if (parts[1].equalsIgnoreCase("component")) {
+                        CpsDomain.Board b = boards().get(parts[2]);
+                        if (b == null) { System.out.println("[ERR] Board not found: " + parts[2]); return; }
+                        String type = parts[3].toUpperCase();
+                        String compId = (parts.length > 4) ? parts[4] : parts[2] + "_" + type.toLowerCase();
+                        CpsDomain.ElectronicComponent ec = switch (type) {
+                            case "LED"           -> new HardwareDictionary.LED(compId);
+                            case "PIR"           -> new HardwareDictionary.PIRSensor(compId);
+                            case "DOOR"          -> new HardwareDictionary.DoorContactSensor(compId);
+                            case "RADAR"         -> new HardwareDictionary.MmWaveRadar(compId);
+                            case "RELAY"         -> new HardwareDictionary.RelayModule(compId);
+                            case "TEMP"          -> new HardwareDictionary.TemperatureSensor(compId, 25.0);
+                            case "RESISTOR"      -> new HardwareDictionary.Resistor(compId, (parts.length > 5) ? Double.parseDouble(parts[5]) : 220.0);
+                            case "CAPACITOR"     -> new HardwareDictionary.Capacitor(compId, (parts.length > 5) ? Double.parseDouble(parts[5]) : 0.0001);
+                            default              -> new HardwareDictionary.LED(compId);
+                        };
+                        b.addComponent(ec);
+                        System.out.printf("[COMP ADDED] Added %s '%s' to board '%s'%n", type, compId, parts[2]);
                     }
                 }
 
