@@ -2,6 +2,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.io.*;
 import java.net.*;
+import java.awt.geom.Point2D;
 
 // ============================================================================
 // PART 1: CYBER-PHYSICAL DOMAIN CLASSES (Two-Port Cyber-Physical Architecture)
@@ -149,6 +150,11 @@ public class CpsDomain {
         public String model;
         public Map<String, Pin> pins = new LinkedHashMap<>();
         public Map<String, ElectronicComponent> components = new LinkedHashMap<>();
+
+        // Component graphic & visual layout coordinates
+        public String imagePath = null;
+        public Map<String, Point2D.Double> pinPositions = new LinkedHashMap<>();
+        public int layoutX = 100, layoutY = 100;
         
         // On-board flashed firmware & HAL
         private Firmware flashedFirmware = null;

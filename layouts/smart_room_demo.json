@@ -1,7 +1,7 @@
 {
   "format": "CPS_LAYOUT_V1",
   "workspace": "SmartRoom",
-  "savedAt": "2026-10-17 04:37:59",
+  "savedAt": "2026-10-17 09:00:25",
   "terminalPort": 9091,
   "boards": [
     {
@@ -63,7 +63,44 @@
           "hvacRelayPin": "GPIO_22"
         }
       },
-      "radioPort": 9090
+      "radioPort": 9090,
+      "imagePath": "assets/esp32_wroom.png",
+      "layoutX": 460,
+      "layoutY": 140,
+      "pinPositions": {
+        "3V3": {
+          "u": 0.105,
+          "v": 0.1
+        },
+        "GND": {
+          "u": 0.105,
+          "v": 0.145
+        },
+        "GPIO_04": {
+          "u": 0.105,
+          "v": 0.28
+        },
+        "GPIO_12": {
+          "u": 0.105,
+          "v": 0.5
+        },
+        "GPIO_14": {
+          "u": 0.105,
+          "v": 0.545
+        },
+        "GPIO_27": {
+          "u": 0.105,
+          "v": 0.59
+        },
+        "GPIO_21": {
+          "u": 0.895,
+          "v": 0.635
+        },
+        "GPIO_22": {
+          "u": 0.895,
+          "v": 0.68
+        }
+      }
     },
     {
       "id": "PIR_MotionSensor",
@@ -75,7 +112,24 @@
           "voltage": 0.0
         }
       ],
-      "components": []
+      "components": [],
+      "imagePath": "assets/pir_motion_sensor.png",
+      "layoutX": 80,
+      "layoutY": 60,
+      "pinPositions": {
+        "VCC": {
+          "u": 0.36,
+          "v": 0.83
+        },
+        "DATA": {
+          "u": 0.5,
+          "v": 0.83
+        },
+        "GND": {
+          "u": 0.64,
+          "v": 0.83
+        }
+      }
     },
     {
       "id": "DoorContactSensor",
@@ -87,7 +141,9 @@
           "voltage": 0.0
         }
       ],
-      "components": []
+      "components": [],
+      "layoutX": 100,
+      "layoutY": 100
     },
     {
       "id": "MillimeterWaveRadar",
@@ -99,7 +155,9 @@
           "voltage": 0.0
         }
       ],
-      "components": []
+      "components": [],
+      "layoutX": 100,
+      "layoutY": 100
     }
   ],
   "wires": [

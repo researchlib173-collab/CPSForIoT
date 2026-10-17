@@ -1,6 +1,7 @@
 import java.util.*;
 import java.util.concurrent.*;
 import java.io.*;
+import javax.swing.*;
 
 // ============================================================================
 // SMART ROOM CLI — Cyber-Physical Workbench with Layout & Board Persistence
@@ -65,6 +66,8 @@ public class SmartRoomCLI {
         System.out.println("║  connect <B1> <P1> to <B2> <P2>   connect with wire          ║");
         System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
         System.out.println("║  flash <BOARD> <FIRMWARE> [sec]   flash on-board firmware    ║");
+        System.out.println("║  pinfix <BOARD> [IMAGE]           calibrate pin dots on image║");
+        System.out.println("║  autoroute / aroute               visual circuit schematic   ║");
         System.out.println("║  sim start|stop|status            clock engine control       ║");
         System.out.println("║  list boards|wires|workspaces     inspect <BOARD>            ║");
         System.out.println("║  exit                                                        ║");
@@ -247,6 +250,64 @@ public class SmartRoomCLI {
                         }
                         default -> System.out.println("[SYNTAX] board save <board> [file] | board load <file> [as <name>] | board list");
                     }
+                }
+
+                // ── pinfix <boardname> [imagePath] ───────────────────────────
+                case "pinfix" -> {
+                    if (parts.length < 2) {
+                        System.out.println("[SYNTAX] pinfix <boardname/component_name> [optional_image_path]");
+                        return;
+                    }
+                    String boardName = parts[1];
+                    CpsDomain.Board b = boards().get(boardName);
+                    if (b == null) {
+                        System.out.println("[ERR] Board not found in active workspace: " + boardName);
+                        return;
+                    }
+
+                    File imgFile = null;
+                    if (parts.length >= 3) {
+                        imgFile = new File(parts[2]);
+                    } else if (b.imagePath != null && !b.imagePath.isEmpty()) {
+                        File existing = new File(b.imagePath);
+                        if (existing.exists()) imgFile = existing;
+                    }
+
+                    final CpsDomain.Board targetBoard = b;
+                    if (imgFile == null || !imgFile.exists()) {
+                        System.out.println("[PINFIX] Launching file chooser to browse for component image...");
+                        SwingUtilities.invokeLater(() -> {
+                            JFileChooser chooser = new JFileChooser(new File("assets"));
+                            chooser.setDialogTitle("Select Component Image for: " + targetBoard.getId());
+                            chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                                "Image Files (*.png, *.jpg, *.jpeg, *.bmp)", "png", "jpg", "jpeg", "bmp"));
+                            int ret = chooser.showOpenDialog(null);
+                            if (ret == JFileChooser.APPROVE_OPTION) {
+                                File selected = chooser.getSelectedFile();
+                                System.out.println("[PINFIX] Selected image: " + selected.getAbsolutePath());
+                                PinFixCalibrator.launch(targetBoard, selected, () -> {
+                                    System.out.printf("[PINFIX] Saved %d calibrated pin positions for %s%n",
+                                        targetBoard.pinPositions.size(), targetBoard.getId());
+                                });
+                            } else {
+                                System.out.println("[PINFIX] Calibration cancelled (no image selected).");
+                            }
+                        });
+                    } else {
+                        System.out.println("[PINFIX] Opening PinFix calibrator with image: " + imgFile.getAbsolutePath());
+                        final File selected = imgFile;
+                        PinFixCalibrator.launch(targetBoard, selected, () -> {
+                            System.out.printf("[PINFIX] Saved %d calibrated pin positions for %s%n",
+                                targetBoard.pinPositions.size(), targetBoard.getId());
+                        });
+                    }
+                }
+
+                // ── autoroute or aroute ───────────────────────────────────────
+                case "autoroute", "aroute" -> {
+                    System.out.printf("[AUTOROUTE] Opening visual circuit schematic for workspace '%s' (%d boards, %d wires)...%n",
+                        activeWorkspace, boards().size(), wires.size());
+                    CircuitAutoRouteGUI.launch(activeWorkspace, boards(), wires);
                 }
 
                 // ── import ESP32 as RoomMasterMCU ─────────────────────────────

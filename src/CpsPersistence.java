@@ -217,6 +217,23 @@ public class CpsPersistence {
             bm.put("radioPort", b.radioBridge.getPort());
         }
 
+        // Serialize visual layout & pin calibration coordinates
+        if (b.imagePath != null && !b.imagePath.isEmpty()) {
+            bm.put("imagePath", b.imagePath);
+        }
+        bm.put("layoutX", b.layoutX);
+        bm.put("layoutY", b.layoutY);
+        if (!b.pinPositions.isEmpty()) {
+            Map<String, Object> posMap = new LinkedHashMap<>();
+            for (Map.Entry<String, java.awt.geom.Point2D.Double> entry : b.pinPositions.entrySet()) {
+                Map<String, Object> coord = new LinkedHashMap<>();
+                coord.put("u", entry.getValue().x);
+                coord.put("v", entry.getValue().y);
+                posMap.put(entry.getKey(), coord);
+            }
+            bm.put("pinPositions", posMap);
+        }
+
         return bm;
     }
 
@@ -329,6 +346,28 @@ public class CpsPersistence {
         if (bm.containsKey("radioPort")) {
             int rPort = ((Number) bm.get("radioPort")).intValue();
             board.enableRadioBridge(rPort);
+        }
+
+        // Restore visual layout coordinates & image path
+        if (bm.containsKey("imagePath") && bm.get("imagePath") != null) {
+            board.imagePath = (String) bm.get("imagePath");
+        }
+        if (bm.containsKey("layoutX") && bm.get("layoutX") instanceof Number) {
+            board.layoutX = ((Number) bm.get("layoutX")).intValue();
+        }
+        if (bm.containsKey("layoutY") && bm.get("layoutY") instanceof Number) {
+            board.layoutY = ((Number) bm.get("layoutY")).intValue();
+        }
+        if (bm.containsKey("pinPositions") && bm.get("pinPositions") instanceof Map) {
+            Map<String, Object> posMap = (Map<String, Object>) bm.get("pinPositions");
+            for (Map.Entry<String, Object> entry : posMap.entrySet()) {
+                if (entry.getValue() instanceof Map) {
+                    Map<String, Object> cm = (Map<String, Object>) entry.getValue();
+                    double u = cm.get("u") instanceof Number ? ((Number) cm.get("u")).doubleValue() : 0.0;
+                    double v = cm.get("v") instanceof Number ? ((Number) cm.get("v")).doubleValue() : 0.0;
+                    board.pinPositions.put(entry.getKey(), new java.awt.geom.Point2D.Double(u, v));
+                }
+            }
         }
 
         return board;
