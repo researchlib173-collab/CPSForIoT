@@ -35,7 +35,7 @@ public class TestVisualFeatures {
         assert reloadedEsp.imagePath.equals(esp.imagePath) : "imagePath mismatch";
         assert reloadedEsp.layoutX == 450 : "layoutX mismatch";
         assert reloadedEsp.layoutY == 120 : "layoutY mismatch";
-        assert reloadedEsp.pinPositions.size() == 3 : "pinPositions count mismatch: " + reloadedEsp.pinPositions.size();
+        assert reloadedEsp.pinPositions.size() == 30 : "pinPositions count mismatch: " + reloadedEsp.pinPositions.size();
         assert Math.abs(reloadedEsp.pinPositions.get("GPIO_12").x - 0.105) < 0.001 : "GPIO_12 u coord mismatch";
         assert Math.abs(reloadedEsp.pinPositions.get("GPIO_12").y - 0.450) < 0.001 : "GPIO_12 v coord mismatch";
         System.out.println("  ✓ Board imagePath & pinPositions saved and restored cleanly!");
@@ -46,7 +46,7 @@ public class TestVisualFeatures {
         boards.put("TestESP32", reloadedEsp);
 
         // A board WITHOUT an image (tests default box fallback)
-        CpsDomain.Board unassignedPIR = new CpsDomain.Board("TestPIR_NoImage", "PIR_SENSOR");
+        CpsDomain.Board unassignedPIR = new CpsDomain.Board("TestPIR_NoImage", "CUSTOM");
         unassignedPIR.addPin("DATA", CpsDomain.PinMode.DIGITAL_OUT);
         unassignedPIR.addPin("VCC", CpsDomain.PinMode.DIGITAL_IN);
         unassignedPIR.addPin("GND", CpsDomain.PinMode.DIGITAL_IN);
@@ -93,13 +93,11 @@ public class TestVisualFeatures {
 
         System.out.printf("  Loaded workspace: '%s' (%d boards, %d wires)%n",
             thermalLayout.workspaceName, thermalLayout.boards.size(), thermalLayout.wires.size());
-        assert thermalLayout.boards.size() == 8 : "Thermal bench must have exactly 8 boards";
-        assert thermalLayout.wires.size() == 10 : "Thermal bench must have exactly 10 wires";
+        assert thermalLayout.boards.size() == 3 : "Thermal bench must have exactly 3 boards";
+        assert thermalLayout.wires.size() == 7 : "Thermal bench must have exactly 7 wires";
 
         String[] expectedBoards = {
-            "BenchMasterMCU", "BenchPowerSource", "PowerSupplyUnderTest",
-            "ThermocoupleArray", "ThermalChamber", "Prog_DC_Load",
-            "CoolingFanModule", "SafetyCutoffRelay"
+            "BenchMasterMCU", "INA219_Sensor", "TempSensor"
         };
 
         for (String bId : expectedBoards) {

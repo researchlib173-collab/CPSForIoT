@@ -279,8 +279,11 @@ public class CpsPersistence {
             case "ESP32_WROOM", "ESP32" -> board = HardwareDictionary.createESP32(id);
             case "NODEMCU_ESP8266", "NODEMCU" -> board = HardwareDictionary.createNodeMCU(id);
             case "ARDUINO_UNO_R3", "ARDUINO" -> board = HardwareDictionary.createArduinoUno(id);
-            case "RELAY_HV_MODULE" -> board = HardwareDictionary.createRelayModule(id);
-            default -> board = new CpsDomain.Board(id, model);
+            case "RELAY_HV_MODULE", "RELAY" -> board = HardwareDictionary.createRelayModule(id);
+            case "INA219", "INA219_SENSOR", "POWER_METER" -> board = HardwareDictionary.createINA219(id);
+            case "TEMP", "TEMP_SENSOR", "TEMPERATURE_SENSOR" -> board = HardwareDictionary.createTempSensor(id);
+            case "LED_MODULE", "LED" -> board = HardwareDictionary.createLedModule(id);
+            default -> board = HardwareDictionary.createComponentBoard(model, id);
         }
 
         // Apply/overwrite pin configurations

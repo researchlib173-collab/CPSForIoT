@@ -436,6 +436,20 @@ public class CpsDomain {
             if (b == null) return false;
             return b.pins.containsValue(pinA) || b.pins.containsValue(pinB);
         }
+
+        public void disconnectFromWire(Wire other) {
+            if (other != null) {
+                this.connectedWires.remove(other);
+                other.connectedWires.remove(this);
+            }
+        }
+
+        public void disconnectFromAll() {
+            for (Wire cw : new ArrayList<>(connectedWires)) {
+                cw.connectedWires.remove(this);
+            }
+            connectedWires.clear();
+        }
     }
 
     // --- 3. HARDWARE ENTITIES (Components & Boards) ---

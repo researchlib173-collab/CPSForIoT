@@ -1,7 +1,7 @@
 {
   "format": "CPS_LAYOUT_V1",
   "workspace": "ThermalBench",
-  "savedAt": "2026-10-17 10:45:00",
+  "savedAt": "2026-10-17 15:40:00",
   "terminalPort": 9093,
   "boards": [
     {
@@ -10,33 +10,28 @@
       "pins": [
         { "id": "3V3", "mode": "DIGITAL_OUT", "voltage": 3.3 },
         { "id": "GND", "mode": "DIGITAL_OUT", "voltage": 0.0 },
-        { "id": "GPIO_34", "mode": "ANALOG_IN", "voltage": 2.2 },
-        { "id": "GPIO_35", "mode": "ANALOG_IN", "voltage": 1.4 },
-        { "id": "GPIO_36", "mode": "ANALOG_IN", "voltage": 2.64 },
-        { "id": "GPIO_39", "mode": "ANALOG_IN", "voltage": 1.98 },
-        { "id": "GPIO_32", "mode": "ANALOG_IN", "voltage": 1.72 },
-        { "id": "GPIO_33", "mode": "ANALOG_IN", "voltage": 1.50 },
-        { "id": "GPIO_25", "mode": "ANALOG_IN", "voltage": 1.58 },
-        { "id": "GPIO_26", "mode": "ANALOG_IN", "voltage": 0.99 },
-        { "id": "GPIO_18", "mode": "PWM_OUT", "voltage": 2.5 },
-        { "id": "GPIO_23", "mode": "DIGITAL_OUT", "voltage": 3.3 }
+        { "id": "GPIO_34", "mode": "ANALOG_IN", "voltage": 1.523 },
+        { "id": "GPIO_35", "mode": "ANALOG_IN", "voltage": 1.031 },
+        { "id": "GPIO_32", "mode": "ANALOG_IN", "voltage": 1.006 },
+        { "id": "GPIO_21", "mode": "DIGITAL_OUT", "voltage": 3.3 },
+        { "id": "GPIO_22", "mode": "DIGITAL_OUT", "voltage": 3.3 }
       ],
       "components": [],
       "firmware": {
         "name": "ThermalBench_Firmware_v1.0",
         "class": "ThermalBenchFirmware",
         "parameters": {
-          "maxHotspotTempDegC": 95.0,
-          "maxOutputCurrentA": 21.0,
+          "maxHotspotTempDegC": 85.0,
+          "maxOutputCurrentA": 3.2,
           "nominalVout": 12.0,
           "vinPin": "GPIO_34",
           "iinPin": "GPIO_35",
-          "voutPin": "GPIO_36",
-          "ioutPin": "GPIO_39",
+          "voutPin": "GPIO_34",
+          "ioutPin": "GPIO_35",
           "tempMosfetPin": "GPIO_32",
-          "tempCorePin": "GPIO_33",
-          "tempDiodePin": "GPIO_25",
-          "tempAmbientPin": "GPIO_26",
+          "tempCorePin": "GPIO_32",
+          "tempDiodePin": "GPIO_32",
+          "tempAmbientPin": "GPIO_32",
           "fanPwmPin": "GPIO_18",
           "psuEnablePin": "GPIO_23"
         }
@@ -44,7 +39,7 @@
       "radioPort": 9092,
       "imagePath": "assets/esp32_wroom.png",
       "layoutX": 460,
-      "layoutY": 240,
+      "layoutY": 180,
       "pinPositions": {
         "EN":      { "u": 0.100, "v": 0.143 },
         "GPIO_36": { "u": 0.100, "v": 0.189 },
@@ -79,206 +74,97 @@
       }
     },
     {
-      "id": "BenchPowerSource",
-      "model": "CUSTOM",
+      "id": "INA219_Sensor",
+      "model": "INA219",
       "pins": [
-        { "id": "VIN_OUT", "mode": "DIGITAL_OUT", "voltage": 2.2 },
-        { "id": "IIN_SHUNT", "mode": "DIGITAL_OUT", "voltage": 1.4 },
-        { "id": "GND", "mode": "DIGITAL_OUT", "voltage": 0.0 }
+        { "id": "VCC", "mode": "DIGITAL_IN", "voltage": 3.3 },
+        { "id": "GND", "mode": "DIGITAL_OUT", "voltage": 0.0 },
+        { "id": "SCL", "mode": "DIGITAL_IN", "voltage": 3.3 },
+        { "id": "SDA", "mode": "DIGITAL_OUT", "voltage": 3.3 },
+        { "id": "VIN_PLUS", "mode": "ANALOG_IN", "voltage": 1.523 },
+        { "id": "VIN_MINUS", "mode": "ANALOG_IN", "voltage": 1.031 }
       ],
       "components": [],
-      "imagePath": "assets/bench_power_source.png",
-      "layoutX": 60,
-      "layoutY": 60,
+      "imagePath": "assets/ina219_sensor.png",
+      "layoutX": 80,
+      "layoutY": 120,
       "pinPositions": {
-        "VIN_OUT":   { "u": 0.300, "v": 0.833 },
-        "IIN_SHUNT": { "u": 0.500, "v": 0.833 },
-        "GND":       { "u": 0.700, "v": 0.833 }
+        "VCC":       { "u": 0.180, "v": 0.850 },
+        "GND":       { "u": 0.310, "v": 0.850 },
+        "SCL":       { "u": 0.440, "v": 0.850 },
+        "SDA":       { "u": 0.570, "v": 0.850 },
+        "VIN_MINUS": { "u": 0.700, "v": 0.850 },
+        "VIN_PLUS":  { "u": 0.830, "v": 0.850 }
       }
     },
     {
-      "id": "PowerSupplyUnderTest",
-      "model": "CUSTOM",
+      "id": "TempSensor",
+      "model": "TEMP_SENSOR",
       "pins": [
-        { "id": "VIN_IN", "mode": "DIGITAL_IN", "voltage": 2.2 },
-        { "id": "VOUT", "mode": "DIGITAL_OUT", "voltage": 2.64 },
-        { "id": "GND", "mode": "DIGITAL_OUT", "voltage": 0.0 }
+        { "id": "VCC", "mode": "DIGITAL_IN", "voltage": 3.3 },
+        { "id": "GND", "mode": "DIGITAL_OUT", "voltage": 0.0 },
+        { "id": "TEMP_OUT", "mode": "DIGITAL_OUT", "voltage": 1.006 }
       ],
       "components": [],
-      "imagePath": "assets/power_supply_under_test.png",
-      "layoutX": 60,
-      "layoutY": 250,
+      "imagePath": "assets/temperature_sensor.png",
+      "layoutX": 80,
+      "layoutY": 420,
       "pinPositions": {
-        "VIN_IN": { "u": 0.143, "v": 0.750 },
-        "VOUT":   { "u": 0.857, "v": 0.750 },
-        "GND":    { "u": 0.857, "v": 0.438 }
-      }
-    },
-    {
-      "id": "ThermocoupleArray",
-      "model": "CUSTOM",
-      "pins": [
-        { "id": "T_MOSFET", "mode": "DIGITAL_OUT", "voltage": 1.72 },
-        { "id": "T_CORE", "mode": "DIGITAL_OUT", "voltage": 1.50 },
-        { "id": "T_DIODE", "mode": "DIGITAL_OUT", "voltage": 1.58 },
-        { "id": "T_AMBIENT", "mode": "DIGITAL_OUT", "voltage": 0.99 }
-      ],
-      "components": [],
-      "imagePath": "assets/thermocouple_array.png",
-      "layoutX": 60,
-      "layoutY": 440,
-      "pinPositions": {
-        "T_MOSFET":  { "u": 0.842, "v": 0.214 },
-        "T_CORE":    { "u": 0.842, "v": 0.393 },
-        "T_DIODE":   { "u": 0.842, "v": 0.571 },
-        "T_AMBIENT": { "u": 0.842, "v": 0.750 }
-      }
-    },
-    {
-      "id": "ThermalChamber",
-      "model": "CUSTOM",
-      "pins": [
-        { "id": "T_AMBIENT", "mode": "DIGITAL_OUT", "voltage": 0.99 },
-        { "id": "HEATER_CTRL", "mode": "DIGITAL_IN", "voltage": 3.3 }
-      ],
-      "components": [],
-      "imagePath": "assets/thermal_chamber.png",
-      "layoutX": 60,
-      "layoutY": 630,
-      "pinPositions": {
-        "T_AMBIENT":   { "u": 0.825, "v": 0.813 },
-        "HEATER_CTRL": { "u": 0.575, "v": 0.813 }
-      }
-    },
-    {
-      "id": "Prog_DC_Load",
-      "model": "CUSTOM",
-      "pins": [
-        { "id": "LOAD+", "mode": "DIGITAL_IN", "voltage": 2.64 },
-        { "id": "LOAD-", "mode": "DIGITAL_IN", "voltage": 0.0 },
-        { "id": "IOUT_SENSE", "mode": "DIGITAL_OUT", "voltage": 1.98 },
-        { "id": "SENSE-", "mode": "DIGITAL_OUT", "voltage": 0.0 }
-      ],
-      "components": [],
-      "imagePath": "assets/electronic_load.png",
-      "layoutX": 860,
-      "layoutY": 80,
-      "pinPositions": {
-        "LOAD+":      { "u": 0.190, "v": 0.794 },
-        "LOAD-":      { "u": 0.381, "v": 0.794 },
-        "IOUT_SENSE": { "u": 0.571, "v": 0.794 },
-        "SENSE-":     { "u": 0.762, "v": 0.794 }
-      }
-    },
-    {
-      "id": "CoolingFanModule",
-      "model": "CUSTOM",
-      "pins": [
-        { "id": "PWM_IN", "mode": "DIGITAL_IN", "voltage": 2.5 },
-        { "id": "TACH", "mode": "DIGITAL_OUT", "voltage": 3.3 },
-        { "id": "VCC", "mode": "DIGITAL_IN", "voltage": 12.0 },
-        { "id": "GND", "mode": "DIGITAL_IN", "voltage": 0.0 }
-      ],
-      "components": [],
-      "imagePath": "assets/cooling_fan_module.png",
-      "layoutX": 860,
-      "layoutY": 310,
-      "pinPositions": {
-        "PWM_IN": { "u": 0.250, "v": 0.853 },
-        "TACH":   { "u": 0.417, "v": 0.853 },
-        "VCC":    { "u": 0.583, "v": 0.853 },
-        "GND":    { "u": 0.750, "v": 0.853 }
-      }
-    },
-    {
-      "id": "SafetyCutoffRelay",
-      "model": "CUSTOM",
-      "pins": [
-        { "id": "ENABLE_IN", "mode": "DIGITAL_IN", "voltage": 3.3 },
-        { "id": "VCC", "mode": "DIGITAL_IN", "voltage": 5.0 },
-        { "id": "GND", "mode": "DIGITAL_IN", "voltage": 0.0 }
-      ],
-      "components": [],
-      "imagePath": "assets/relay_module.png",
-      "layoutX": 860,
-      "layoutY": 550,
-      "pinPositions": {
-        "VCC":       { "u": 0.119, "v": 0.235 },
-        "GND":       { "u": 0.119, "v": 0.382 },
-        "ENABLE_IN": { "u": 0.119, "v": 0.529 }
+        "VCC":      { "u": 0.300, "v": 0.850 },
+        "TEMP_OUT": { "u": 0.500, "v": 0.850 },
+        "GND":      { "u": 0.700, "v": 0.850 }
       }
     }
   ],
   "wires": [
     {
-      "name": "w_vin",
-      "fromBoard": "BenchPowerSource",
-      "fromPin": "VIN_OUT",
+      "name": "w_i2c_scl",
+      "fromBoard": "INA219_Sensor",
+      "fromPin": "SCL",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_22"
+    },
+    {
+      "name": "w_i2c_sda",
+      "fromBoard": "INA219_Sensor",
+      "fromPin": "SDA",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_21"
+    },
+    {
+      "name": "w_ina_vbus",
+      "fromBoard": "INA219_Sensor",
+      "fromPin": "VIN_PLUS",
       "toBoard": "BenchMasterMCU",
       "toPin": "GPIO_34"
     },
     {
-      "name": "w_iin",
-      "fromBoard": "BenchPowerSource",
-      "fromPin": "IIN_SHUNT",
+      "name": "w_ina_isense",
+      "fromBoard": "INA219_Sensor",
+      "fromPin": "VIN_MINUS",
       "toBoard": "BenchMasterMCU",
       "toPin": "GPIO_35"
     },
     {
-      "name": "w_vout",
-      "fromBoard": "PowerSupplyUnderTest",
-      "fromPin": "VOUT",
-      "toBoard": "BenchMasterMCU",
-      "toPin": "GPIO_36"
-    },
-    {
-      "name": "w_iout",
-      "fromBoard": "Prog_DC_Load",
-      "fromPin": "IOUT_SENSE",
-      "toBoard": "BenchMasterMCU",
-      "toPin": "GPIO_39"
-    },
-    {
-      "name": "w_t_mosfet",
-      "fromBoard": "ThermocoupleArray",
-      "fromPin": "T_MOSFET",
+      "name": "w_temp_sig",
+      "fromBoard": "TempSensor",
+      "fromPin": "TEMP_OUT",
       "toBoard": "BenchMasterMCU",
       "toPin": "GPIO_32"
     },
     {
-      "name": "w_t_core",
-      "fromBoard": "ThermocoupleArray",
-      "fromPin": "T_CORE",
-      "toBoard": "BenchMasterMCU",
-      "toPin": "GPIO_33"
-    },
-    {
-      "name": "w_t_diode",
-      "fromBoard": "ThermocoupleArray",
-      "fromPin": "T_DIODE",
-      "toBoard": "BenchMasterMCU",
-      "toPin": "GPIO_25"
-    },
-    {
-      "name": "w_t_amb",
-      "fromBoard": "ThermalChamber",
-      "fromPin": "T_AMBIENT",
-      "toBoard": "BenchMasterMCU",
-      "toPin": "GPIO_26"
-    },
-    {
-      "name": "w_fan",
+      "name": "w_mcu_pwr",
       "fromBoard": "BenchMasterMCU",
-      "fromPin": "GPIO_18",
-      "toBoard": "CoolingFanModule",
-      "toPin": "PWM_IN"
+      "fromPin": "3V3",
+      "toBoard": "INA219_Sensor",
+      "toPin": "VCC"
     },
     {
-      "name": "w_safety",
+      "name": "w_mcu_gnd",
       "fromBoard": "BenchMasterMCU",
-      "fromPin": "GPIO_23",
-      "toBoard": "SafetyCutoffRelay",
-      "toPin": "ENABLE_IN"
+      "fromPin": "GND",
+      "toBoard": "INA219_Sensor",
+      "toPin": "GND"
     }
   ]
 }

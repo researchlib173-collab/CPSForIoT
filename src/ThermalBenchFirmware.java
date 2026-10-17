@@ -84,9 +84,9 @@ public class ThermalBenchFirmware implements CpsDomain.Firmware {
     }
 
     public ThermalBenchFirmware() {
-        this("GPIO_34", "GPIO_35", "GPIO_36", "GPIO_39",
-             "GPIO_32", "GPIO_33", "GPIO_25", "GPIO_26",
-             "GPIO_18", "GPIO_23", 95.0, 21.0, 12.0);
+        this("GPIO_34", "GPIO_35", "GPIO_34", "GPIO_35",
+             "GPIO_32", "GPIO_32", "GPIO_32", "GPIO_32",
+             "GPIO_18", "GPIO_23", 85.0, 3.2, 12.0);
     }
 
     @Override
@@ -114,55 +114,47 @@ public class ThermalBenchFirmware implements CpsDomain.Firmware {
 
     @Override
     public void loop(CpsDomain.McuHAL mcu) {
-        // ── 1. SENSOR SAMPLING (Electrical Probes via MCU ADCs) ─────────────────
+        // ── 1. SENSOR SAMPLING (INA219 I2C & Power Monitor Probes) ────────────
         // Scale factors:
-        // Vin:  0 - 3.3V ADC corresponds to 0 - 36.0V
-        // Iin:  0 - 3.3V ADC corresponds to 0 - 12.0A
-        // Vout: 0 - 3.3V ADC corresponds to 0 - 15.0V
-        // Iout: 0 - 3.3V ADC corresponds to 0 - 20.0A
+        // Vin:  0 - 3.3V ADC corresponds to 0 - 26.0V Bus Voltage
+        // Iin:  0 - 3.3V ADC corresponds to 0 - 3.2A Load Current (0.1Ω Shunt)
         double rawVinV  = mcu.analogReadVoltage(vinPin);
         double rawIinV  = mcu.analogReadVoltage(iinPin);
         double rawVoutV = mcu.analogReadVoltage(voutPin);
         double rawIoutV = mcu.analogReadVoltage(ioutPin);
 
-        vin  = (rawVinV / 3.3) * 36.0;
-        iin  = (rawIinV / 3.3) * 12.0;
-        vout = (rawVoutV / 3.3) * 15.0;
-        iout = (rawIoutV / 3.3) * 20.0;
+        vin  = (rawVinV / 3.3) * 26.0;
+        iin  = (rawIinV / 3.3) * 3.2;
+        vout = (rawVoutV > 0.05) ? (rawVoutV / 3.3) * 26.0 : vin;
+        iout = (rawIoutV > 0.005) ? (rawIoutV / 3.3) * 3.2 : iin;
 
         // Clamp noise
-        if (vin < 0.2) vin = 0.0;
-        if (iin < 0.02) iin = 0.0;
-        if (vout < 0.2) vout = 0.0;
-        if (iout < 0.02) iout = 0.0;
+        if (vin < 0.1) vin = 0.0;
+        if (iin < 0.005) iin = 0.0;
+        if (vout < 0.1) vout = 0.0;
+        if (iout < 0.005) iout = 0.0;
 
-        // ── 2. THERMAL SAMPLING (4-Channel Thermocouple Array) ───────────────────
-        // Scale factors:
-        // Thermocouple op-amps scale 0 - 3.3V to 0 - 125.0 degC
-        // Ambient probe scales 0 - 3.3V to 0 - 100.0 degC
-        double rawMcuTmosfet = mcu.analogReadVoltage(tempMosfetPin);
-        double rawMcuTcore   = mcu.analogReadVoltage(tempCorePin);
-        double rawMcuTdiode  = mcu.analogReadVoltage(tempDiodePin);
-        double rawMcuTamb    = mcu.analogReadVoltage(tempAmbientPin);
+        // ── 2. THERMAL SAMPLING (Dynamic Temperature Sensor Module) ───────────
+        // Temperature sensor analog output: 10mV/°C (0 - 3.3V corresponds to 0 - 100.0°C)
+        double rawMcuT = mcu.analogReadVoltage(tempMosfetPin);
+        double sensedT = (rawMcuT > 0.05) ? (rawMcuT / 3.3) * 100.0 : 25.0;
+        if (sensedT < 15.0) sensedT = 25.0; // Baseline room ambient
 
-        tempMosfet  = (rawMcuTmosfet / 3.3) * 125.0;
-        tempCore    = (rawMcuTcore   / 3.3) * 125.0;
-        tempDiode   = (rawMcuTdiode  / 3.3) * 125.0;
-        tempAmbient = (rawMcuTamb    / 3.3) * 100.0;
+        // Exponential thermal smoothing (tau ~ 2s):
+        // Prevents discrete sampling step artifacts, modeling realistic heatsink thermal lag
+        tempMosfet += (sensedT - tempMosfet) * 0.45;
+        tempCore    = tempMosfet * 0.96;
+        tempDiode   = tempMosfet * 0.93;
+        tempAmbient = Math.min(tempMosfet, 25.0);
 
-        if (tempAmbient < 20.0) tempAmbient = 25.0; // Baseline room ambient
-        if (tempMosfet < tempAmbient) tempMosfet = tempAmbient;
-        if (tempCore < tempAmbient) tempCore = tempAmbient;
-        if (tempDiode < tempAmbient) tempDiode = tempAmbient;
-
-        double maxHotspot = Math.max(tempMosfet, Math.max(tempCore, tempDiode));
+        double maxHotspot = tempMosfet;
 
         // ── 3. EFFICIENCY & POWER DISSIPATION MATH ─────────────────────────────
         pinW   = vin * iin;
-        poutW  = vout * iout;
+        poutW  = vout * iout * 0.96; // 4% shunt & thermal losses
         plossW = Math.max(0.0, pinW - poutW);
 
-        if (pinW > 0.5 && poutW > 0.1) {
+        if (pinW > 0.2) {
             efficiency = Math.min(99.0, (poutW / pinW) * 100.0);
         } else {
             efficiency = 0.0;

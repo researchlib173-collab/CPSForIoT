@@ -27,10 +27,11 @@ public class AssetGenerator {
         generatePowerSupplyUnderTest(new File(assetsDir, "power_supply_under_test.png"));
         generateThermocoupleArray(new File(assetsDir, "thermocouple_array.png"));
         generateThermalChamber(new File(assetsDir, "thermal_chamber.png"));
-        generateCoolingFan(new File(assetsDir, "cooling_fan_module.png"));
         generateLedModule(new File(assetsDir, "led_module.png"));
+        generateINA219(new File(assetsDir, "ina219_sensor.png"));
+        generateTemperatureSensor(new File(assetsDir, "temperature_sensor.png"));
 
-        System.out.println("[ASSETS] Generated 12 component images in assets/");
+        System.out.println("[ASSETS] Generated 14 component images in assets/");
     }
 
     // 1. ESP32-WROOM DevKit (400 x 560 px, 30-pin Standard Dual In-Line)
@@ -730,6 +731,165 @@ public class AssetGenerator {
         // CATHODE: x = 230, y = 250 (u = 0.639, v = 0.833)
         drawSolderPad(g2, 130, 250, "ANODE");
         drawSolderPad(g2, 230, 250, "CATHODE");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 13. INA219 Bidirectional Current / Power Monitor Breakout
+    private static void generateINA219(File file) throws IOException {
+        int w = 380, h = 260;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // PCB Board (Dark Indigo / Purple finish like Adafruit / Texas Instruments boards)
+        g2.setColor(new Color(24, 28, 52));
+        g2.fillRoundRect(20, 15, 340, 230, 14, 14);
+        g2.setColor(new Color(60, 75, 120));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 15, 340, 230, 14, 14);
+
+        // Corner mounting holes
+        g2.setColor(new Color(212, 175, 55));
+        g2.fillOval(32, 27, 16, 16);
+        g2.fillOval(332, 27, 16, 16);
+        g2.setColor(new Color(15, 18, 30));
+        g2.fillOval(36, 31, 8, 8);
+        g2.fillOval(336, 31, 8, 8);
+
+        // Header Title / Silkscreen
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
+        g2.setColor(new Color(230, 240, 255));
+        g2.drawString("INA219 POWER SENSOR", 85, 42);
+
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
+        g2.setColor(new Color(140, 160, 200));
+        g2.drawString("I2C 0x40  •  0-26V DC  •  ±3.2A High-Side", 72, 60);
+
+        // High-Power 0.1 Ohm Current Shunt Resistor (R100, 2W 2512 Package)
+        int rx = 70, ry = 95, rw = 80, rh = 40;
+        g2.setColor(new Color(212, 175, 55)); // Copper solder pads
+        g2.fillRect(rx - 8, ry, 8, rh);
+        g2.fillRect(rx + rw, ry, 8, rh);
+        g2.setColor(new Color(20, 90, 85)); // Teal / ceramic body
+        g2.fillRoundRect(rx, ry, rw, rh, 6, 6);
+        g2.setColor(new Color(15, 60, 55));
+        g2.drawRoundRect(rx, ry, rw, rh, 6, 6);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
+        g2.drawString("R100", rx + 20, ry + 25);
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 9));
+        g2.setColor(new Color(180, 230, 220));
+        g2.drawString("0.1Ω 2W Shunt", rx + 8, ry + rh + 12);
+
+        // INA219 SOIC-8 IC
+        int icX = 220, icY = 90, icW = 75, icH = 50;
+        // IC Pins
+        g2.setColor(new Color(200, 205, 215));
+        for (int i = 0; i < 4; i++) {
+            g2.fillRect(icX + 10 + i * 16, icY - 6, 8, 6); // Top pins
+            g2.fillRect(icX + 10 + i * 16, icY + icH, 8, 6); // Bottom pins
+        }
+        g2.setColor(new Color(30, 32, 40));
+        g2.fillRoundRect(icX, icY, icW, icH, 4, 4);
+        g2.setColor(new Color(50, 55, 68));
+        g2.drawRoundRect(icX, icY, icW, icH, 4, 4);
+        // Pin 1 dot
+        g2.setColor(new Color(120, 130, 150));
+        g2.fillOval(icX + 6, icY + 6, 6, 6);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
+        g2.drawString("INA219", icX + 16, icY + 28);
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 8));
+        g2.setColor(new Color(140, 160, 190));
+        g2.drawString("TI 12-BIT ADC", icX + 10, icY + 40);
+
+        // Gold PCB Traces
+        g2.setColor(new Color(180, 150, 50, 180));
+        g2.setStroke(new BasicStroke(1.5f));
+        g2.drawLine(rx + rw + 8, ry + 20, 315, ry + 20);
+        g2.drawLine(315, ry + 20, 315, 221);
+        g2.drawLine(rx - 8, ry + 20, 266, ry + 20);
+        g2.drawLine(266, ry + 20, 266, 221);
+
+        // Bottom row pads (u, v):
+        // VCC: 0.18 -> 68, 221
+        // GND: 0.31 -> 118, 221
+        // SCL: 0.44 -> 167, 221
+        // SDA: 0.57 -> 217, 221
+        // VIN-: 0.70 -> 266, 221
+        // VIN+: 0.83 -> 315, 221
+        drawSolderPad(g2, 68, 221, "VCC");
+        drawSolderPad(g2, 118, 221, "GND");
+        drawSolderPad(g2, 167, 221, "SCL");
+        drawSolderPad(g2, 217, 221, "SDA");
+        drawSolderPad(g2, 266, 221, "VIN-");
+        drawSolderPad(g2, 315, 221, "VIN+");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 14. Precision Temperature Sensor Breakout (LM35 / TMP36 / Analog Output)
+    private static void generateTemperatureSensor(File file) throws IOException {
+        int w = 340, h = 240;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // PCB Board (Dark emerald / forest green finish)
+        g2.setColor(new Color(18, 36, 28));
+        g2.fillRoundRect(20, 15, 300, 210, 14, 14);
+        g2.setColor(new Color(40, 85, 60));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 15, 300, 210, 14, 14);
+
+        // Header Title / Silkscreen
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
+        g2.setColor(new Color(230, 255, 240));
+        g2.drawString("TEMP SENSOR MODULE", 75, 42);
+
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
+        g2.setColor(new Color(130, 190, 160));
+        g2.drawString("Analog Linear Output • 10mV/°C", 78, 60);
+
+        // Radial Thermal Glow behind sensor
+        int cx = 170, cy = 115;
+        RadialGradientPaint heatAura = new RadialGradientPaint(
+            new Point2D.Float(cx, cy), 55.0f,
+            new float[]{0.0f, 0.5f, 1.0f},
+            new Color[]{new Color(255, 120, 40, 80), new Color(255, 120, 40, 25), new Color(255, 120, 40, 0)}
+        );
+        g2.setPaint(heatAura);
+        g2.fillOval(cx - 55, cy - 55, 110, 110);
+
+        // TO-92 Transistor-style Sensor Package in Center
+        g2.setColor(new Color(30, 33, 38));
+        g2.fillArc(cx - 30, cy - 25, 60, 50, 0, 180);
+        g2.fillRect(cx - 30, cy, 60, 16);
+        g2.setColor(new Color(60, 65, 75));
+        g2.setStroke(new BasicStroke(1.5f));
+        g2.drawArc(cx - 30, cy - 25, 60, 50, 0, 180);
+        g2.drawRect(cx - 30, cy, 60, 16);
+
+        // Thermal Waves / Thermometer Icon
+        g2.setColor(new Color(255, 140, 50));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+        g2.drawString("THERMAL DIE", cx - 35, cy + 12);
+
+        // Leads going from TO-92 body down to solder pads
+        g2.setColor(new Color(200, 205, 215));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawLine(cx - 15, cy + 16, 102, 204); // VCC lead
+        g2.drawLine(cx, cy + 16, 170, 204);      // TEMP_OUT lead
+        g2.drawLine(cx + 15, cy + 16, 238, 204); // GND lead
+
+        // Bottom row pads (u, v):
+        // VCC: 0.30 -> 102, 204
+        // TEMP_OUT: 0.50 -> 170, 204
+        // GND: 0.70 -> 238, 204
+        drawSolderPad(g2, 102, 204, "VCC");
+        drawSolderPad(g2, 170, 204, "TEMP_OUT");
+        drawSolderPad(g2, 238, 204, "GND");
 
         g2.dispose();
         ImageIO.write(img, "PNG", file);

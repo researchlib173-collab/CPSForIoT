@@ -338,7 +338,22 @@ public class TestWireFeatures {
         // Test wire list command
         SmartRoomCLI.process("wire list");
 
-        System.out.println("OK (CLI commands verified)");
+        // Test disconnect <board_name><pin_name> from <board_name><pin_name> with and without dots
+        SmartRoomCLI.process("disconnect AuxLed.ANODE from SensorNode.OUT");
+        if (findCliWire("W_LED_TAP") != null) {
+            throw new AssertionError("disconnect AuxLed.ANODE from SensorNode.OUT failed to remove wire!");
+        }
+
+        SmartRoomCLI.process("connect AuxLed ANODE to SensorNode OUT W_LED_TAP2");
+        if (findCliWire("W_LED_TAP2") == null) {
+            throw new AssertionError("W_LED_TAP2 not created");
+        }
+        SmartRoomCLI.process("disconnect AuxLedANODE from SensorNodeOUT");
+        if (findCliWire("W_LED_TAP2") != null) {
+            throw new AssertionError("disconnect AuxLedANODE from SensorNodeOUT failed to remove wire!");
+        }
+
+        System.out.println("OK (CLI connect & disconnect commands verified)");
     }
 
     private static CpsDomain.Wire findCliWire(String name) {

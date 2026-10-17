@@ -64,6 +64,7 @@ public class SmartRoomCLI {
         System.out.println("║  create board <NAME>              blank custom board         ║");
         System.out.println("║  add pin <BOARD> <PIN> <MODE>     DIGITAL_IN/OUT ANALOG_IN   ║");
         System.out.println("║  connect <B1> <P1> to <B2> <P2>   connect with wire          ║");
+        System.out.println("║  disconnect <B1><P1> from <B2><P2>remove connection          ║");
         System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
         System.out.println("║  flash <BOARD> <FIRMWARE> [sec]   flash on-board firmware    ║");
         System.out.println("║  pinfix <BOARD> [IMAGE]           calibrate pin dots on image║");
@@ -480,6 +481,102 @@ public class SmartRoomCLI {
                         parts[1], parts[2], parts[4], parts[5], wName);
                 }
 
+                // ── disconnect <B1><P1> from <B2><P2> | disconnect <B1> <P1> from <B2> <P2> | disconnect wire <W> ──
+                case "disconnect" -> {
+                    if (parts.length < 2) {
+                        System.out.println("[SYNTAX] disconnect <board_name><pin_name> from <board_name><pin_name> | disconnect wire <wire_name>");
+                        return;
+                    }
+
+                    // Check for "disconnect wire <W>"
+                    if (parts.length >= 3 && parts[1].equalsIgnoreCase("wire")) {
+                        String wName = parts[2];
+                        CpsDomain.Wire targetW = findWireByName(wName);
+                        if (targetW != null) {
+                            wires.remove(targetW);
+                            targetW.disconnectFromAll();
+                            System.out.printf("[DISCONNECTED] Wire '%s' removed.%n", wName);
+                        } else {
+                            System.out.println("[ERR] Wire not found: " + wName);
+                        }
+                        return;
+                    }
+
+                    BoardPinPair bp1 = null, bp2 = null;
+
+                    // Case A: Spaced syntax: disconnect B1 P1 from B2 P2 (5 tokens)
+                    if (parts.length >= 5 && (parts[3].equalsIgnoreCase("from") || parts[3].equalsIgnoreCase("to"))) {
+                        CpsDomain.Board b1 = boards().get(parts[1]);
+                        CpsDomain.Board b2 = boards().get(parts[4]);
+                        if (b1 != null && b2 != null) {
+                            CpsDomain.Pin p1 = b1.getPin(parts[2]);
+                            CpsDomain.Pin p2 = b2.getPin(parts[5]);
+                            if (p1 != null && p2 != null) {
+                                bp1 = new BoardPinPair(b1, p1);
+                                bp2 = new BoardPinPair(b2, p2);
+                            }
+                        }
+                    }
+
+                    // Case B: Concatenated or dotted syntax: disconnect <B1><P1> from <B2><P2>
+                    if (bp1 == null && parts.length >= 3) {
+                        int fromIdx = -1;
+                        for (int i = 1; i < parts.length; i++) {
+                            if (parts[i].equalsIgnoreCase("from") || parts[i].equalsIgnoreCase("to")) {
+                                fromIdx = i;
+                                break;
+                            }
+                        }
+                        if (fromIdx > 0 && fromIdx + 1 < parts.length) {
+                            String t1 = String.join("", Arrays.copyOfRange(parts, 1, fromIdx));
+                            String t2 = String.join("", Arrays.copyOfRange(parts, fromIdx + 1, parts.length));
+                            bp1 = resolveBoardPin(t1);
+                            bp2 = resolveBoardPin(t2);
+                        }
+                    }
+
+                    // Case C: Single token is wire name: disconnect <W>
+                    if (bp1 == null && bp2 == null && parts.length == 2) {
+                        CpsDomain.Wire targetW = findWireByName(parts[1]);
+                        if (targetW != null) {
+                            wires.remove(targetW);
+                            targetW.disconnectFromAll();
+                            System.out.printf("[DISCONNECTED] Wire '%s' removed.%n", parts[1]);
+                            return;
+                        }
+                    }
+
+                    if (bp1 == null || bp2 == null) {
+                        System.out.println("[ERR] Unable to resolve both terminals. Syntax: disconnect <board_name><pin_name> from <board_name><pin_name>");
+                        return;
+                    }
+
+                    // Find wire connecting bp1.pin and bp2.pin
+                    CpsDomain.Wire found = null;
+                    for (CpsDomain.Wire w : wires) {
+                        if ((w.pinA == bp1.pin && w.pinB == bp2.pin) || (w.pinA == bp2.pin && w.pinB == bp1.pin)) {
+                            found = w;
+                            break;
+                        }
+                    }
+
+                    if (found != null) {
+                        wires.remove(found);
+                        found.disconnectFromAll();
+                        if (bp1.pin.mode == CpsDomain.PinMode.DIGITAL_IN || bp1.pin.mode == CpsDomain.PinMode.ANALOG_IN) {
+                            bp1.pin.setVoltage(0.0);
+                        }
+                        if (bp2.pin.mode == CpsDomain.PinMode.DIGITAL_IN || bp2.pin.mode == CpsDomain.PinMode.ANALOG_IN) {
+                            bp2.pin.setVoltage(0.0);
+                        }
+                        System.out.printf("[DISCONNECTED] %s.%s ←/→ %s.%s  [%s]%n",
+                            bp1.board.getId(), bp1.pin.pinId, bp2.board.getId(), bp2.pin.pinId, found.wireName);
+                    } else {
+                        System.out.printf("[ERR] No direct wire found connecting %s.%s and %s.%s%n",
+                            bp1.board.getId(), bp1.pin.pinId, bp2.board.getId(), bp2.pin.pinId);
+                    }
+                }
+
                 // ── wire connect <W1> to <W2> | wire connect <W1> to component <COMP> ──
                 case "wire" -> {
                     if (parts.length < 2) {
@@ -607,6 +704,14 @@ public class SmartRoomCLI {
                         int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9094;
                         System.out.printf("[APPLET] Launching LED Blink Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new LedBlinkApplet("localhost", port));
+                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("dashboard") || parts[1].equalsIgnoreCase("dash") || parts[1].equalsIgnoreCase("thermal"))) {
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9092;
+                        System.out.printf("[APPLET] Launching Thermal Bench Telemetry Dashboard (port %d)...%n", port);
+                        SwingUtilities.invokeLater(() -> new ThermalBenchDashboardApplet("localhost", port));
+                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("input") || parts[1].equalsIgnoreCase("rps") || parts[1].equalsIgnoreCase("psu"))) {
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9093;
+                        System.out.printf("[APPLET] Launching Regulated Power Supply & Motor Input Applet (port %d)...%n", port);
+                        SwingUtilities.invokeLater(() -> new ThermalBenchInputApplet("localhost", port));
                     }
                 }
 
@@ -722,5 +827,45 @@ public class SmartRoomCLI {
         File f = new File(filename);
         if (f.isAbsolute() || filename.contains("/") || filename.contains("\\")) return f;
         return new File("saved_boards", filename);
+    }
+
+    private static class BoardPinPair {
+        final CpsDomain.Board board;
+        final CpsDomain.Pin pin;
+        BoardPinPair(CpsDomain.Board b, CpsDomain.Pin p) { this.board = b; this.pin = p; }
+    }
+
+    private static BoardPinPair resolveBoardPin(String token) {
+        if (token == null || token.trim().isEmpty()) return null;
+        String t = token.trim();
+        // 1. Dot notation: "Board.Pin"
+        if (t.contains(".")) {
+            String[] parts = t.split("\\.", 2);
+            CpsDomain.Board b = boards().get(parts[0]);
+            if (b != null) {
+                CpsDomain.Pin p = b.getPin(parts[1]);
+                if (p != null) return new BoardPinPair(b, p);
+            }
+        }
+        // 2. Exact board name match then remainder as pin: <board_name><pin_name>
+        for (String bName : boards().keySet()) {
+            if (t.toLowerCase().startsWith(bName.toLowerCase())) {
+                String pCandidate = t.substring(bName.length());
+                if (pCandidate.startsWith(".") || pCandidate.startsWith("_")) {
+                    // Try with or without leading dot/underscore
+                }
+                CpsDomain.Board b = boards().get(bName);
+                if (b != null && !pCandidate.isEmpty()) {
+                    CpsDomain.Pin p = b.getPin(pCandidate);
+                    if (p != null) return new BoardPinPair(b, p);
+                    for (Map.Entry<String, CpsDomain.Pin> pe : b.pins.entrySet()) {
+                        if (pe.getKey().equalsIgnoreCase(pCandidate)) {
+                            return new BoardPinPair(b, pe.getValue());
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

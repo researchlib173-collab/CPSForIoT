@@ -7,6 +7,9 @@ import java.net.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 // ============================================================================
 // THERMAL BENCH DASHBOARD APPLET — Telemetry Monitor & Efficiency Visualizer
@@ -63,6 +66,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
     private final EfficiencyGaugePanel gaugePanel = new EfficiencyGaugePanel();
     private final ElectricalPanel elecPanel = new ElectricalPanel();
     private final ThermalHotspotPanel thermalPanel = new ThermalHotspotPanel();
+    private final TempVsEfficiencyGraphPanel graphPanel = new TempVsEfficiencyGraphPanel();
 
     private final DefaultListModel<String> packetLogModel = new DefaultListModel<>();
     private final JList<String> packetList = new JList<>(packetLogModel);
@@ -74,8 +78,8 @@ public class ThermalBenchDashboardApplet extends JFrame {
 
         buildUI();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1020, 720);
-        setMinimumSize(new Dimension(880, 600));
+        setSize(1120, 820);
+        setMinimumSize(new Dimension(960, 680));
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG_DARK);
         setVisible(true);
@@ -122,24 +126,29 @@ public class ThermalBenchDashboardApplet extends JFrame {
         topBar.add(headerStatusLbl, BorderLayout.EAST);
         add(topBar, BorderLayout.NORTH);
 
-        // ── CENTER: Visualizer Panels ─────────────────────────────────────────
-        JPanel centerGrid = new JPanel(new GridLayout(1, 3, 10, 0));
-        centerGrid.setOpaque(false);
+        // ── CENTER: Visualizer Panels & Real-Time Temperature vs Efficiency Graph ──
+        JPanel centerContainer = new JPanel(new BorderLayout(0, 10));
+        centerContainer.setOpaque(false);
 
-        centerGrid.add(gaugePanel);
-        centerGrid.add(elecPanel);
-        centerGrid.add(thermalPanel);
+        // Upper Row: 3 Core Meters (Gauge, Electrical Power, 4-Zone Thermocouple)
+        JPanel topGrid = new JPanel(new GridLayout(1, 3, 10, 0));
+        topGrid.setOpaque(false);
+        topGrid.add(gaugePanel);
+        topGrid.add(elecPanel);
+        topGrid.add(thermalPanel);
 
-        add(centerGrid, BorderLayout.CENTER);
+        // Lower Row: Temperature vs Efficiency Graph & Telemetry Stream Log
+        JPanel bottomRow = new JPanel(new GridLayout(1, 2, 10, 0));
+        bottomRow.setOpaque(false);
+        bottomRow.setPreferredSize(new Dimension(100, 260));
 
-        // ── BOTTOM: Telemetry Packet Log ─────────────────────────────────────
-        JPanel bottomPanel = new JPanel(new BorderLayout(4, 4));
-        bottomPanel.setBackground(CARD_BG);
-        bottomPanel.setBorder(new CompoundBorder(
+        // Telemetry Packet Stream Log Card
+        JPanel logCard = new JPanel(new BorderLayout(4, 4));
+        logCard.setBackground(CARD_BG);
+        logCard.setBorder(new CompoundBorder(
             new LineBorder(new Color(36, 44, 66), 1, true),
             new EmptyBorder(8, 12, 8, 12)
         ));
-        bottomPanel.setPreferredSize(new Dimension(100, 160));
 
         JLabel logHeader = new JLabel("Virtual Wi-Fi Telemetry Stream (Port " + port + "):");
         logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
@@ -151,9 +160,16 @@ public class ThermalBenchDashboardApplet extends JFrame {
         JScrollPane scroll = new JScrollPane(packetList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
-        bottomPanel.add(logHeader, BorderLayout.NORTH);
-        bottomPanel.add(scroll, BorderLayout.CENTER);
-        add(bottomPanel, BorderLayout.SOUTH);
+        logCard.add(logHeader, BorderLayout.NORTH);
+        logCard.add(scroll, BorderLayout.CENTER);
+
+        bottomRow.add(graphPanel);
+        bottomRow.add(logCard);
+
+        centerContainer.add(topGrid, BorderLayout.CENTER);
+        centerContainer.add(bottomRow, BorderLayout.SOUTH);
+
+        add(centerContainer, BorderLayout.CENTER);
     }
 
     // =========================================================================
@@ -386,6 +402,250 @@ public class ThermalBenchDashboardApplet extends JFrame {
     }
 
     // =========================================================================
+    // 4. TEMPERATURE vs. EFFICIENCY GRAPH PANEL
+    // =========================================================================
+    // Real-time characteristic plot:
+    // X-Axis: MOSFET / Rig Temperature (°C) [0 .. 100°C]
+    // Y-Axis: Converter Efficiency η (%) [0 .. 100%]
+    // Features:
+    //   - Dark engineered grid with major/minor tick marks
+    //   - OTP thermal danger threshold shading (>85°C)
+    //   - Expected derating reference baseline curve
+    //   - Dynamic history trace connecting recorded (T, η) pairs
+    //   - Active pulse reticle and coordinate HUD readout
+    // =========================================================================
+    private class TempVsEfficiencyGraphPanel extends JPanel {
+        private static final int MAX_POINTS = 300;
+
+        private static class DataPoint {
+            final double temp;
+            final double eff;
+            DataPoint(double temp, double eff) {
+                this.temp = temp;
+                this.eff = eff;
+            }
+        }
+
+        private final List<DataPoint> history = Collections.synchronizedList(new ArrayList<>());
+
+        public TempVsEfficiencyGraphPanel() {
+            setOpaque(false);
+            setBorder(new CompoundBorder(
+                new LineBorder(new Color(36, 44, 66), 1, true),
+                new EmptyBorder(8, 12, 8, 12)
+            ));
+        }
+
+        public void recordPoint(double temp, double eff) {
+            if (Double.isNaN(temp) || Double.isNaN(eff)) return;
+            synchronized (history) {
+                if (!history.isEmpty()) {
+                    DataPoint last = history.get(history.size() - 1);
+                    if (Math.abs(last.temp - temp) < 0.05 && Math.abs(last.eff - eff) < 0.05) {
+                        return;
+                    }
+                }
+                history.add(new DataPoint(temp, eff));
+                while (history.size() > MAX_POINTS) {
+                    history.remove(0);
+                }
+            }
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int w = getWidth(), h = getHeight();
+            g2.setColor(CARD_BG);
+            g2.fillRoundRect(0, 0, w, h, 12, 12);
+
+            // Title Header with Current Coordinate Readout
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+            g2.setColor(TEXT_MUTED);
+            g2.drawString("REAL-TIME η vs. TEMPERATURE CHARACTERISTIC", 14, 20);
+
+            // Realtime Readout on top right
+            String readout = String.format(Locale.US, "T: %.1f°C | η: %.1f%%", tempMosfet, efficiency);
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+            g2.setColor(efficiency >= 85.0 ? ACCENT_GREEN : (efficiency >= 70.0 ? ACCENT_AMBER : ACCENT_RED));
+            int rW = g2.getFontMetrics().stringWidth(readout);
+            g2.drawString(readout, w - rW - 14, 20);
+
+            // Plot Area Boundaries
+            int padLeft = 48;
+            int padRight = 18;
+            int padTop = 32;
+            int padBottom = 34;
+
+            int plotX = padLeft;
+            int plotY = padTop;
+            int plotW = Math.max(10, w - padLeft - padRight);
+            int plotH = Math.max(10, h - padTop - padBottom);
+
+            // Plot Background
+            g2.setColor(new Color(12, 15, 23));
+            g2.fillRect(plotX, plotY, plotW, plotH);
+            g2.setColor(new Color(36, 44, 66));
+            g2.drawRect(plotX, plotY, plotW, plotH);
+
+            // Range Constants
+            double minT = 0.0, maxT = 100.0;
+            double minE = 0.0, maxE = 100.0;
+
+            // Over-Temperature Protection (OTP) warning zone above 85°C
+            if (maxT > 85.0) {
+                int otpX = plotX + (int) Math.round(((85.0 - minT) / (maxT - minT)) * plotW);
+                int otpW = (plotX + plotW) - otpX;
+                if (otpW > 0) {
+                    g2.setColor(new Color(245, 70, 70, 24));
+                    g2.fillRect(otpX, plotY, otpW, plotH);
+                    g2.setColor(new Color(245, 70, 70, 90));
+                    g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 9));
+                    g2.drawString("OTP ZONE (>85°C)", otpX + 4, plotY + 12);
+                }
+            }
+
+            // Grid Lines & Axis Ticks
+            // Horizontal Grid (Efficiency %: 0, 20, 40, 60, 80, 100)
+            Stroke gridStroke = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{2.0f, 3.0f}, 0.0f);
+            Stroke solidStroke = new BasicStroke(1.0f);
+
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
+            for (int effVal = 0; effVal <= 100; effVal += 20) {
+                double normY = (effVal - minE) / (maxE - minE);
+                int gy = plotY + plotH - (int) Math.round(normY * plotH);
+
+                g2.setStroke(gridStroke);
+                g2.setColor(new Color(32, 40, 58));
+                g2.drawLine(plotX, gy, plotX + plotW, gy);
+
+                // Y-Axis label
+                g2.setColor(TEXT_MUTED);
+                String yLbl = effVal + "%";
+                int yLblW = g2.getFontMetrics().stringWidth(yLbl);
+                g2.drawString(yLbl, plotX - yLblW - 6, gy + 4);
+            }
+
+            // Vertical Grid (Temperature °C: 0, 20, 40, 60, 80, 100)
+            for (int tVal = 0; tVal <= 100; tVal += 20) {
+                double normX = (tVal - minT) / (maxT - minT);
+                int gx = plotX + (int) Math.round(normX * plotW);
+
+                g2.setStroke(gridStroke);
+                g2.setColor(new Color(32, 40, 58));
+                g2.drawLine(gx, plotY, gx, plotY + plotH);
+
+                // X-Axis label
+                g2.setColor(TEXT_MUTED);
+                String xLbl = tVal + "°";
+                int xLblW = g2.getFontMetrics().stringWidth(xLbl);
+                g2.drawString(xLbl, gx - (xLblW / 2), plotY + plotH + 14);
+            }
+
+            // Axis Titles
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
+            g2.setColor(new Color(170, 185, 215));
+            String xTitle = "TEMPERATURE X (°C)";
+            int xtW = g2.getFontMetrics().stringWidth(xTitle);
+            g2.drawString(xTitle, plotX + (plotW - xtW) / 2, plotY + plotH + 28);
+
+            g2.drawString("η (%)", 8, plotY - 6);
+
+            // Clip plot contents to inside the plot bounds
+            Shape oldClip = g2.getClip();
+            g2.clipRect(plotX, plotY, plotW, plotH);
+
+            // Theoretical / Derating Reference Curve (Faint Dashed Line)
+            Path2D.Double refPath = new Path2D.Double();
+            g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{4.0f, 4.0f}, 0.0f));
+            g2.setColor(new Color(80, 110, 150, 110));
+            for (int t = 0; t <= 100; t += 2) {
+                double refEff = Math.max(0.0, 95.0 - ((t - 25.0) * 0.22));
+                double rx = plotX + ((t - minT) / (maxT - minT)) * plotW;
+                double ry = plotY + plotH - ((refEff - minE) / (maxE - minE)) * plotH;
+                if (t == 0) refPath.moveTo(rx, ry);
+                else refPath.lineTo(rx, ry);
+            }
+            g2.draw(refPath);
+
+            // Render Historical Data Trail
+            List<DataPoint> copy;
+            synchronized (history) {
+                copy = new ArrayList<>(history);
+            }
+
+            if (!copy.isEmpty()) {
+                Path2D.Double path = new Path2D.Double();
+                boolean first = true;
+                for (DataPoint pt : copy) {
+                    double clT = Math.max(minT, Math.min(maxT, pt.temp));
+                    double clE = Math.max(minE, Math.min(maxE, pt.eff));
+                    double px = plotX + ((clT - minT) / (maxT - minT)) * plotW;
+                    double py = plotY + plotH - ((clE - minE) / (maxE - minE)) * plotH;
+
+                    if (first) {
+                        path.moveTo(px, py);
+                        first = false;
+                    } else {
+                        path.lineTo(px, py);
+                    }
+                }
+
+                // Draw historical line trail with glow
+                g2.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(new Color(40, 200, 245, 50));
+                g2.draw(path);
+
+                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setColor(ACCENT_CYAN);
+                g2.draw(path);
+
+                // Small dots for recent points
+                int step = Math.max(1, copy.size() / 30);
+                for (int i = 0; i < copy.size(); i += step) {
+                    DataPoint pt = copy.get(i);
+                    double clT = Math.max(minT, Math.min(maxT, pt.temp));
+                    double clE = Math.max(minE, Math.min(maxE, pt.eff));
+                    int dx = plotX + (int) Math.round(((clT - minT) / (maxT - minT)) * plotW);
+                    int dy = plotY + plotH - (int) Math.round(((clE - minE) / (maxE - minE)) * plotH);
+
+                    g2.setColor(new Color(50, 220, 120, 160));
+                    g2.fillOval(dx - 2, dy - 2, 4, 4);
+                }
+            }
+
+            // Current Operating Point Reticle
+            double currT = Math.max(minT, Math.min(maxT, tempMosfet));
+            double currE = Math.max(minE, Math.min(maxE, efficiency));
+            int curX = plotX + (int) Math.round(((currT - minT) / (maxT - minT)) * plotW);
+            int curY = plotY + plotH - (int) Math.round(((currE - minE) / (maxE - minE)) * plotH);
+
+            // Crosshair projection lines
+            g2.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{3.0f, 3.0f}, 0.0f));
+            g2.setColor(new Color(255, 180, 50, 140));
+            g2.drawLine(plotX, curY, curX, curY);
+            g2.drawLine(curX, curY, curX, plotY + plotH);
+
+            // Glowing cursor dot
+            g2.setColor(new Color(255, 180, 50, 60));
+            g2.fillOval(curX - 8, curY - 8, 16, 16);
+            g2.setColor(ACCENT_AMBER);
+            g2.setStroke(solidStroke);
+            g2.drawOval(curX - 5, curY - 5, 10, 10);
+            g2.setColor(Color.WHITE);
+            g2.fillOval(curX - 2, curY - 2, 4, 4);
+
+            g2.setClip(oldClip);
+            g2.dispose();
+        }
+    }
+
+    // =========================================================================
     // NETWORKING (Port 1 Telemetry Reader)
     // =========================================================================
     private void connect() {
@@ -439,6 +699,8 @@ public class ThermalBenchDashboardApplet extends JFrame {
         tempAmbient = extractJsonDouble(json, "temp_ambient", tempAmbient);
 
         fanPwm = (int) extractJsonDouble(json, "fan_pwm", fanPwm);
+
+        graphPanel.recordPoint(tempMosfet, efficiency);
     }
 
     private void updateStatus(String text, Color color) {

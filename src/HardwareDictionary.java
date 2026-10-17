@@ -442,6 +442,96 @@ public class HardwareDictionary {
         return board;
     }
 
+    /**
+     * INA219 Zero-Drift, Bidirectional Current/Power Monitor IC with I2C Interface.
+     * Specification:
+     * - Target Bus Voltage: 0V - 26V DC
+     * - Shunt Resistor: 0.1 ohm, 2W
+     * - Current Range: up to ±3.2A
+     * - Resolution: 0.8mA
+     * - Interface: I2C (default address 0x40)
+     */
+    public static class INA219 extends CpsDomain.ElectronicComponent {
+        public INA219(String id) {
+            super(id, "INA219");
+            setProperty("bus_voltage", 12.0);
+            setProperty("current_a", 0.0);
+            setProperty("shunt_voltage_mv", 0.0);
+            setProperty("power_w", 0.0);
+            setProperty("i2c_addr", 0x40);
+
+            this.baseLogic = () -> {
+                double vBus = getDoubleProperty("bus_voltage", 12.0);
+                double iLoad = getDoubleProperty("current_a", 0.0);
+                double vShuntMv = iLoad * 0.1 * 1000.0; // 0.1 ohm shunt
+                double pWatts = vBus * iLoad;
+                setProperty("shunt_voltage_mv", vShuntMv);
+                setProperty("power_w", pWatts);
+            };
+        }
+    }
+
+    public static CpsDomain.Board createINA219(String name) {
+        CpsDomain.Board board = new CpsDomain.Board(name, "INA219");
+        board.addPin("VCC",       CpsDomain.PinMode.DIGITAL_IN);
+        board.addPin("GND",       CpsDomain.PinMode.DIGITAL_OUT);
+        board.addPin("SCL",       CpsDomain.PinMode.DIGITAL_IN);
+        board.addPin("SDA",       CpsDomain.PinMode.DIGITAL_OUT);
+        board.addPin("VIN_PLUS",  CpsDomain.PinMode.ANALOG_IN);
+        board.addPin("VIN_MINUS", CpsDomain.PinMode.ANALOG_IN);
+        board.imagePath = "assets/ina219_sensor.png";
+
+        // Solder pads at bottom row: VCC, GND, SCL, SDA, VIN-, VIN+
+        board.pinPositions.put("VCC",       new java.awt.geom.Point2D.Double(0.18, 0.85));
+        board.pinPositions.put("GND",       new java.awt.geom.Point2D.Double(0.31, 0.85));
+        board.pinPositions.put("SCL",       new java.awt.geom.Point2D.Double(0.44, 0.85));
+        board.pinPositions.put("SDA",       new java.awt.geom.Point2D.Double(0.56, 0.85));
+        board.pinPositions.put("VIN_MINUS", new java.awt.geom.Point2D.Double(0.69, 0.85));
+        board.pinPositions.put("VIN_PLUS",  new java.awt.geom.Point2D.Double(0.82, 0.85));
+
+        INA219 ina = new INA219(name + "_ina");
+        board.addComponent(ina);
+        board.baseLogic = () -> {
+            ina.tickLogic();
+            if (board.getPin("SDA") != null) {
+                board.getPin("SDA").setVoltage(3.3);
+            }
+        };
+        return board;
+    }
+
+    public static CpsDomain.Board createTempSensor(String name) {
+        CpsDomain.Board board = new CpsDomain.Board(name, "TEMP_SENSOR");
+        board.addPin("VCC",      CpsDomain.PinMode.DIGITAL_IN);
+        board.addPin("GND",      CpsDomain.PinMode.DIGITAL_OUT);
+        board.addPin("TEMP_OUT", CpsDomain.PinMode.DIGITAL_OUT);
+        board.imagePath = "assets/temperature_sensor.png";
+
+        board.pinPositions.put("VCC",      new java.awt.geom.Point2D.Double(0.30, 0.85));
+        board.pinPositions.put("TEMP_OUT", new java.awt.geom.Point2D.Double(0.50, 0.85));
+        board.pinPositions.put("GND",      new java.awt.geom.Point2D.Double(0.70, 0.85));
+
+        TemperatureSensor ts = new TemperatureSensor(name + "_sensor", 25.0);
+        board.addComponent(ts);
+        board.baseLogic = () -> {
+            CpsDomain.Pin pin = board.getPin("TEMP_OUT");
+            if (pin != null) {
+                // If externally controlled via netlist or testbed, preserve and track set temperature
+                if (pin.voltage > 0.05) {
+                    ts.setProperty("base_temp_c", (pin.voltage / 3.3) * 100.0);
+                }
+                ts.tickLogic();
+                // Retain current temperature with tiny realistic measurement noise (±0.03°C)
+                double currentT = ts.getDoubleProperty("base_temp_c", 25.0);
+                double noiseT = currentT + (Math.random() - 0.5) * 0.06;
+                double v = Math.max(0.0, Math.min(3.3, (noiseT / 100.0) * 3.3));
+                pin.voltage = v;
+                pin.digitalState = (v >= 1.65) ? CpsDomain.SignalState.HIGH : CpsDomain.SignalState.LOW;
+            }
+        };
+        return board;
+    }
+
     public static CpsDomain.Board createComponentBoard(String type, String name) {
         String t = (type != null) ? type.trim().toUpperCase() : "CUSTOM";
         return switch (t) {
@@ -453,6 +543,8 @@ public class HardwareDictionary {
             case "DOOR", "DOOR_SENSOR", "CONTACT" -> createDoorSensor(name);
             case "RADAR", "MMWAVE", "RADAR_SENSOR"-> createRadarSensor(name);
             case "LED", "LED_MODULE"              -> createLedModule(name);
+            case "INA219", "INA219_SENSOR", "POWER_METER" -> createINA219(name);
+            case "TEMP", "TEMP_SENSOR", "TEMPERATURE_SENSOR" -> createTempSensor(name);
             default                               -> new CpsDomain.Board(name, t);
         };
     }
