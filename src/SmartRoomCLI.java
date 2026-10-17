@@ -308,7 +308,9 @@ public class SmartRoomCLI {
                     if (parts.length > 1) {
                         String target = parts[1].toLowerCase();
                         File targetFile = null;
-                        if (target.contains("thermal")) {
+                        if (target.contains("blink")) {
+                            targetFile = new File("layouts/esp32_blink.json");
+                        } else if (target.contains("thermal")) {
                             targetFile = new File("layouts/thermal_bench_rig.json");
                         } else if (target.contains("smart") || target.contains("room")) {
                             targetFile = new File("layouts/smart_room_demo.json");
@@ -420,6 +422,11 @@ public class SmartRoomCLI {
                         ThermalBenchFirmware fw = new ThermalBenchFirmware();
                         b.flashFirmware(fw);
                         System.out.printf("[FLASH] Successfully flashed %s on %s%n", fw.getName(), parts[1]);
+                    } else if (fwName.toLowerCase().contains("blink")) {
+                        int period = (parts.length > 3) ? Integer.parseInt(parts[3]) : 1000;
+                        Esp32BlinkFirmware fw = new Esp32BlinkFirmware(period);
+                        b.flashFirmware(fw);
+                        System.out.printf("[FLASH] Successfully flashed %s on %s (Period = %dms)%n", fw.getName(), parts[1], period);
                     } else {
                         int hysSec = (parts.length > 3) ? Integer.parseInt(parts[3]) : 30;
                         SmartRoomFirmware fw = new SmartRoomFirmware(hysSec);
@@ -444,14 +451,18 @@ public class SmartRoomCLI {
                     }
                 }
 
-                // ── applet link RoomMasterMCU tcp 9090 ────────────────────────
+                // ── applet link RoomMasterMCU tcp 9090 | applet blink [port] ──
                 case "applet" -> {
-                    if (parts[1].equalsIgnoreCase("link")) {
+                    if (parts.length > 1 && parts[1].equalsIgnoreCase("link")) {
                         CpsDomain.Board b = boards().get(parts[2]);
                         if (b == null) { System.out.println("[ERR] Board not found: " + parts[2]); return; }
                         int port = Integer.parseInt(parts[4]);
                         b.enableSocketBridge(port);
                         System.out.printf("[BRIDGE]    %s → localhost:%d%n", parts[2], port);
+                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("blink") || parts[1].equalsIgnoreCase("led"))) {
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9094;
+                        System.out.printf("[APPLET] Launching LED Blink Applet (port %d)...%n", port);
+                        SwingUtilities.invokeLater(() -> new LedBlinkApplet("localhost", port));
                     }
                 }
 

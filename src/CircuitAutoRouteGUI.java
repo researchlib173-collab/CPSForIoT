@@ -85,9 +85,17 @@ public class CircuitAutoRouteGUI extends JFrame {
     }
 
     public static void main(String[] args) {
-        String layoutName = (args.length > 0 && args[0].toLowerCase().contains("thermal"))
-            ? "layouts/thermal_bench_rig.json"
-            : (args.length > 0 ? args[0] : "layouts/smart_room_demo.json");
+        String arg = (args.length > 0) ? args[0].toLowerCase() : "";
+        String layoutName;
+        if (arg.contains("blink")) {
+            layoutName = "layouts/esp32_blink.json";
+        } else if (arg.contains("thermal")) {
+            layoutName = "layouts/thermal_bench_rig.json";
+        } else if (args.length > 0) {
+            layoutName = args[0];
+        } else {
+            layoutName = "layouts/smart_room_demo.json";
+        }
         File f = new File(layoutName);
         if (!f.exists() && !layoutName.startsWith("layouts/")) f = new File("layouts", layoutName);
         if (f.exists()) {

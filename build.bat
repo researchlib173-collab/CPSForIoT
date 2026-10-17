@@ -26,4 +26,8 @@ echo.
 echo  -- THERMAL BENCH WORKSPACE --
 echo  4. Run Bench Input Stimulator    :  run_bench_input.bat
 echo  5. Run Bench Telemetry Dashboard :  run_bench_dashboard.bat
+echo.
+echo  -- ESP32 SIMPLE BLINK WORKSPACE --
+echo  6. Run LED Blink Visualizer      :  run_led_applet.bat
+echo  7. Run AutoRoute Circuit CAD     :  run_blink_autoroute.bat
 echo ============================================

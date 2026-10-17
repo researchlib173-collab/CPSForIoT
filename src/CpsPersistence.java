@@ -339,6 +339,16 @@ public class CpsPersistence {
                     tMosfet, tCore, tDiode, tAmb,
                     fanPin, psuEnPin, maxOtp, maxOcp, vNom);
                 board.flashFirmware(fw);
+            } else if (fwClass.contains("Blink") || fwName.contains("Blink")) {
+                String ledPin = (String) params.getOrDefault("ledPin", "GPIO_02");
+                int periodMs = 1000;
+                if (params.get("periodMs") instanceof Number) {
+                    periodMs = ((Number) params.get("periodMs")).intValue();
+                } else if (params.get("intervalMs") instanceof Number) {
+                    periodMs = ((Number) params.get("intervalMs")).intValue();
+                }
+                Esp32BlinkFirmware fw = new Esp32BlinkFirmware(ledPin, periodMs);
+                board.flashFirmware(fw);
             }
         }
 

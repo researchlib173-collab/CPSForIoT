@@ -1,0 +1,111 @@
+{
+  "format": "CPS_LAYOUT_V1",
+  "workspace": "ESP32_Blink",
+  "savedAt": "2026-10-17 11:30:00",
+  "terminalPort": 9095,
+  "boards": [
+    {
+      "id": "ESP32_BlinkNode",
+      "model": "ESP32_WROOM",
+      "pins": [
+        {
+          "id": "3V3",
+          "mode": "DIGITAL_OUT",
+          "voltage": 3.3
+        },
+        {
+          "id": "GND",
+          "mode": "DIGITAL_OUT",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_02",
+          "mode": "DIGITAL_OUT",
+          "voltage": 0.0
+        },
+        {
+          "id": "GPIO_04",
+          "mode": "DIGITAL_OUT",
+          "voltage": 0.0
+        }
+      ],
+      "components": [],
+      "firmware": {
+        "name": "ESP32_SimpleBlink_v1.0",
+        "class": "Esp32BlinkFirmware",
+        "parameters": {
+          "ledPin": "GPIO_02",
+          "periodMs": 1000
+        }
+      },
+      "radioPort": 9094,
+      "imagePath": "assets/esp32_wroom.png",
+      "layoutX": 180,
+      "layoutY": 100,
+      "pinPositions": {
+        "3V3": {
+          "u": 0.105,
+          "v": 0.100
+        },
+        "GND": {
+          "u": 0.105,
+          "v": 0.145
+        },
+        "GPIO_04": {
+          "u": 0.105,
+          "v": 0.280
+        },
+        "GPIO_02": {
+          "u": 0.895,
+          "v": 0.500
+        }
+      }
+    },
+    {
+      "id": "StatusLEDModule",
+      "model": "CUSTOM",
+      "pins": [
+        {
+          "id": "ANODE",
+          "mode": "DIGITAL_IN",
+          "voltage": 0.0
+        },
+        {
+          "id": "CATHODE",
+          "mode": "DIGITAL_IN",
+          "voltage": 0.0
+        }
+      ],
+      "components": [],
+      "imagePath": "assets/led_module.png",
+      "layoutX": 680,
+      "layoutY": 210,
+      "pinPositions": {
+        "ANODE": {
+          "u": 0.361,
+          "v": 0.833
+        },
+        "CATHODE": {
+          "u": 0.639,
+          "v": 0.833
+        }
+      }
+    }
+  ],
+  "wires": [
+    {
+      "name": "w_led",
+      "fromBoard": "ESP32_BlinkNode",
+      "fromPin": "GPIO_02",
+      "toBoard": "StatusLEDModule",
+      "toPin": "ANODE"
+    },
+    {
+      "name": "w_gnd",
+      "fromBoard": "ESP32_BlinkNode",
+      "fromPin": "GND",
+      "toBoard": "StatusLEDModule",
+      "toPin": "CATHODE"
+    }
+  ]
+}

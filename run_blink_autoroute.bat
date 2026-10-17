@@ -1,0 +1,3 @@
+@echo off
+echo Opening Circuit Auto-Router CAD for ESP32 Simple Blink project...
+java -cp out CircuitAutoRouteGUI blink

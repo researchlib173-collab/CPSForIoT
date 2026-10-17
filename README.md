@@ -135,3 +135,33 @@ board list
 # Load and replicate the board into any workspace
 board load esp32_room_master.json as Room2MCU
 ```
+
+---
+
+## ESP32 Simple Blink Project & Interactive LED Visualizer
+
+A clean, focused hardware simulation and visualizer workspace for the classic **ESP32 LED Blink**:
+
+### 1. Project Components & Topology
+* **ESP32_BlinkNode:** ESP32-WROOM MCU running `Esp32BlinkFirmware`, driving `GPIO_02` (3.3V / 0.0V) and broadcasting real-time JSON telemetry over Port 1 (`9094`).
+* **StatusLEDModule:** 5mm status LED breakout board (`assets/led_module.png`) with current-limiting resistor, wired `GPIO_02 → ANODE` and `GND → CATHODE`.
+* **Workspace Layout:** `layouts/esp32_blink.json`
+
+### 2. Running the LED Blink Applet
+```cmd
+run_led_applet.bat
+```
+* **Photorealistic 3D Glowing 5mm LED:** Cylindrical epoxy dome, internal cathode anvil and anode bond wire, realistic specular glass reflections, and smooth dynamic radial bloom flares when active.
+* **Rolling Logic Analyzer Scope:** Real-time square wave graph tracking high/low logic transitions over time.
+* **Dual-Mode Operation:** Seamlessly locks onto live Port 1 (`9094`) radio telemetry or runs with its internal simulation clock in standalone mode.
+* **Interactive Controls:** Frequency slider (0.2Hz to 5.0Hz), quick presets (0.5Hz, 1.0Hz, 2.0Hz, 5.0Hz), color theme selector (Emerald Green, Neon Cyan, Ruby Red, Amber Gold, Electric Violet), manual toggle, and pause/resume.
+* **Typography:** `Space Mono` primary font face across all UI elements and custom graphics.
+
+### 3. Circuit CAD Auto-Router & Pin Calibration
+```cmd
+run_blink_autoroute.bat
+# or in CLI:
+autoroute blink
+```
+* Renders real component images with calibrated pin positions and auto-routes Manhattan orthogonal wires with live voltage color coding.
+

@@ -28,8 +28,9 @@ public class AssetGenerator {
         generateThermocoupleArray(new File(assetsDir, "thermocouple_array.png"));
         generateThermalChamber(new File(assetsDir, "thermal_chamber.png"));
         generateCoolingFan(new File(assetsDir, "cooling_fan_module.png"));
+        generateLedModule(new File(assetsDir, "led_module.png"));
 
-        System.out.println("[ASSETS] Generated 11 component images in assets/");
+        System.out.println("[ASSETS] Generated 12 component images in assets/");
     }
 
     // 1. ESP32-WROOM DevKit (400 x 560 px)
@@ -575,6 +576,121 @@ public class AssetGenerator {
         drawSolderPad(g2, 150, 290, "TACH");
         drawSolderPad(g2, 210, 290, "VCC");
         drawSolderPad(g2, 270, 290, "GND");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 12. 5mm Status LED Breakout Module (360 x 300 px)
+    private static void generateLedModule(File file) throws IOException {
+        int w = 360, h = 300;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // PCB Board (Dark sleek matte PCB)
+        g2.setColor(new Color(22, 26, 36));
+        g2.fillRoundRect(20, 20, 320, 260, 16, 16);
+        g2.setColor(new Color(55, 68, 92));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 20, 320, 260, 16, 16);
+
+        // Corner Mounting Holes
+        g2.setColor(new Color(14, 17, 24));
+        g2.fillOval(35, 35, 14, 14);
+        g2.fillOval(311, 35, 14, 14);
+        g2.fillOval(35, 251, 14, 14);
+        g2.fillOval(311, 251, 14, 14);
+
+        // Silkscreen Titles
+        g2.setColor(new Color(230, 235, 245));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
+        g2.drawString("STATUS LED MODULE", 95, 52);
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
+        g2.setColor(new Color(130, 142, 168));
+        g2.drawString("5MM COMPONENT BREAKOUT (3.3V - 5V)", 65, 70);
+
+        // Subtle PCB Copper Traces
+        g2.setColor(new Color(36, 45, 62));
+        g2.setStroke(new BasicStroke(2.5f));
+        g2.drawLine(130, 240, 130, 195);
+        g2.drawLine(130, 195, 155, 195); // To resistor
+        g2.drawLine(155, 195, 155, 160);
+        g2.drawLine(155, 160, 170, 145);
+        g2.drawLine(230, 240, 230, 160); // Cathode trace direct to LED
+        g2.drawLine(230, 160, 190, 145);
+
+        // Current Limiting Resistor (220 Ohm SMD / Through-hole Package)
+        int rx = 105, ry = 145;
+        g2.setColor(new Color(205, 175, 125)); // Resistor body tan/ceramic
+        g2.fillRoundRect(rx, ry, 45, 18, 4, 4);
+        g2.setColor(new Color(150, 120, 80));
+        g2.drawRoundRect(rx, ry, 45, 18, 4, 4);
+        // Resistor color bands (Red, Red, Brown, Gold = 220 Ohm 5%)
+        g2.setColor(new Color(220, 40, 40)); // Red
+        g2.fillRect(rx + 8, ry, 4, 18);
+        g2.fillRect(rx + 16, ry, 4, 18);
+        g2.setColor(new Color(110, 60, 30)); // Brown
+        g2.fillRect(rx + 24, ry, 4, 18);
+        g2.setColor(new Color(212, 175, 55)); // Gold
+        g2.fillRect(rx + 33, ry, 3, 18);
+
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 9));
+        g2.setColor(new Color(180, 190, 210));
+        g2.drawString("R1: 220Ω", rx + 2, ry - 6);
+
+        // LED Physical Graphic in Center (cx = 180, cy = 115)
+        int cx = 180, cy = 112;
+
+        // Radial ambient glow behind LED
+        RadialGradientPaint aura = new RadialGradientPaint(
+            new Point2D.Float(cx, cy), 50.0f,
+            new float[]{0.0f, 0.4f, 1.0f},
+            new Color[]{new Color(0, 230, 118, 90), new Color(0, 230, 118, 30), new Color(0, 230, 118, 0)}
+        );
+        g2.setPaint(aura);
+        g2.fillOval(cx - 50, cy - 50, 100, 100);
+
+        // LED Base Flange / Rim (with flat cathode notch on right)
+        g2.setColor(new Color(0, 160, 80));
+        g2.fillOval(cx - 24, cy + 8, 48, 16);
+        g2.setColor(new Color(0, 100, 50));
+        g2.drawOval(cx - 24, cy + 8, 48, 16);
+
+        // LED Cylindrical Body & Dome
+        g2.setColor(new Color(0, 200, 100, 220));
+        g2.fillRoundRect(cx - 20, cy - 18, 40, 32, 10, 10);
+        g2.fillArc(cx - 20, cy - 32, 40, 32, 0, 180);
+
+        // Internal Leadframe (Cathode Anvil & Anode Post with Die)
+        g2.setColor(new Color(230, 235, 245, 200));
+        g2.setStroke(new BasicStroke(1.5f));
+        // Anode post (left)
+        g2.drawLine(cx - 8, cy + 14, cx - 8, cy - 4);
+        // Cathode anvil (right, wider flat triangular flag)
+        int[] anvilX = {cx + 8, cx + 8, cx + 1, cx - 4};
+        int[] anvilY = {cy + 14, cy - 2, cy - 8, cy - 4};
+        g2.drawPolyline(anvilX, anvilY, 4);
+        // Semiconductor Die Hotspot
+        g2.setColor(new Color(255, 255, 255, 230));
+        g2.fillOval(cx - 2, cy - 6, 4, 4);
+
+        // Realistic Glass Specular Highlight Arc
+        g2.setColor(new Color(255, 255, 255, 160));
+        g2.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawArc(cx - 15, cy - 26, 16, 22, 90, 80);
+
+        // Polarity Indicators Silkscreen
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        g2.setColor(new Color(0, 230, 118));
+        g2.drawString("+ [ANODE]", 85, 230);
+        g2.setColor(new Color(255, 82, 82));
+        g2.drawString("- [CATHODE]", 200, 230);
+
+        // Terminals / Solder Pads at Bottom:
+        // ANODE: x = 130, y = 250 (u = 0.361, v = 0.833)
+        // CATHODE: x = 230, y = 250 (u = 0.639, v = 0.833)
+        drawSolderPad(g2, 130, 250, "ANODE");
+        drawSolderPad(g2, 230, 250, "CATHODE");
 
         g2.dispose();
         ImageIO.write(img, "PNG", file);
