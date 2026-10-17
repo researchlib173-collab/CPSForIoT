@@ -8,17 +8,7 @@ echo ============================================
 if not exist "out" mkdir out
 
 echo [1/2] Compiling all sources...
-javac -d out ^
-  src\CpsDomain.java ^
-  src\HardwareDictionary.java ^
-  src\SmartRoomFirmware.java ^
-  src\PresenceFusionEngine.java ^
-  src\CpsPersistence.java ^
-  src\SmartRoomCLI.java ^
-  src\SensorInputApplet.java ^
-  src\RoomDashboardApplet.java ^
-  src\SimulatorApp.java ^
-  src\SmartRoomDashboard.java
+javac -d out src\*.java
 
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Compilation failed.
@@ -28,7 +18,12 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo [2/2] Build successful! Binaries in .\out\
 echo.
+echo  -- SMART ROOM WORKSPACE --
 echo  1. Run the CLI simulation engine :  run_cli.bat
 echo  2. Run the Sensor Input Applet   :  run_input.bat
 echo  3. Run the Room Dashboard Applet :  run_dashboard.bat
+echo.
+echo  -- THERMAL BENCH WORKSPACE --
+echo  4. Run Bench Input Stimulator    :  run_bench_input.bat
+echo  5. Run Bench Telemetry Dashboard :  run_bench_dashboard.bat
 echo ============================================

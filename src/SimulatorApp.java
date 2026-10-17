@@ -69,7 +69,7 @@ public class SimulatorApp extends JFrame {
         topBar.setBackground(new Color(30, 30, 40));
 
         statusLabel.setForeground(Color.RED);
-        statusLabel.setFont(new Font("Monospaced", Font.BOLD, 13));
+        statusLabel.setFont(new Font("Space Mono", Font.BOLD, 13));
         topBar.add(statusLabel, BorderLayout.WEST);
 
         JButton connectBtn = makeButton("Connect", new Color(40, 180, 80));
@@ -95,7 +95,7 @@ public class SimulatorApp extends JFrame {
 
         // ── Bottom: telemetry log ────────────────────────────────────────────
         logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        logArea.setFont(new Font("Space Mono", Font.PLAIN, 11));
         logArea.setBackground(new Color(15, 15, 25));
         logArea.setForeground(new Color(100, 220, 100));
         logArea.setRows(6);
@@ -131,7 +131,7 @@ public class SimulatorApp extends JFrame {
         // PIR motion toggle
         motionBtn.setBackground(new Color(50, 50, 70));
         motionBtn.setForeground(Color.WHITE);
-        motionBtn.setFont(new Font("Monospaced", Font.BOLD, 12));
+        motionBtn.setFont(new Font("Space Mono", Font.BOLD, 12));
         motionBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
         motionBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         motionBtn.addActionListener(e -> {
@@ -157,7 +157,7 @@ public class SimulatorApp extends JFrame {
         p.add(Box.createVerticalStrut(10));
         p.add(new JLabel("  Manual JSON Command:"));
         JTextField manualField = new JTextField("{\"cmd\":\"PING\"}");
-        manualField.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        manualField.setFont(new Font("Space Mono", Font.PLAIN, 12));
         manualField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         JButton sendBtn = makeButton("Send ▶", new Color(40, 120, 200));
         sendBtn.addActionListener(e -> {
@@ -181,14 +181,14 @@ public class SimulatorApp extends JFrame {
         p.setBackground(new Color(22, 22, 32));
 
         deviceLbl.setForeground(new Color(180, 220, 255));
-        deviceLbl.setFont(new Font("Monospaced", Font.BOLD, 13));
+        deviceLbl.setFont(new Font("Space Mono", Font.BOLD, 13));
         deviceLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(Box.createVerticalStrut(8));
         p.add(deviceLbl);
 
         // LED output
         ledLabel.setForeground(Color.YELLOW);
-        ledLabel.setFont(new Font("Monospaced", Font.BOLD, 13));
+        ledLabel.setFont(new Font("Space Mono", Font.BOLD, 13));
         ledLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         ledBar.setStringPainted(true);
         ledBar.setString("0%");
@@ -203,7 +203,7 @@ public class SimulatorApp extends JFrame {
         p.add(ledBar);
 
         // GPIO12 digital state indicator
-        gpio12Lbl.setFont(new Font("Monospaced", Font.BOLD, 13));
+        gpio12Lbl.setFont(new Font("Space Mono", Font.BOLD, 13));
         gpio12Lbl.setForeground(Color.LIGHT_GRAY);
         gpio12Lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
         p.add(Box.createVerticalStrut(12));
@@ -213,7 +213,7 @@ public class SimulatorApp extends JFrame {
         p.add(Box.createVerticalStrut(12));
         p.add(new JLabel("  Recent Messages:"));
         JList<String> msgList = new JList<>(messageModel);
-        msgList.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        msgList.setFont(new Font("Space Mono", Font.PLAIN, 11));
         msgList.setBackground(new Color(15, 15, 25));
         msgList.setForeground(new Color(100, 200, 100));
         JScrollPane msgScroll = new JScrollPane(msgList);
@@ -329,7 +329,7 @@ public class SimulatorApp extends JFrame {
         slider.setForeground(Color.WHITE);
         JLabel lbl = new JLabel(label + "  [" + slider.getValue() + "]");
         lbl.setForeground(Color.WHITE);
-        lbl.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        lbl.setFont(new Font("Space Mono", Font.PLAIN, 12));
         slider.addChangeListener(e -> {
             lbl.setText(label + "  [" + slider.getValue() + "]");
             onChange.accept(slider.getValue());

@@ -1,0 +1,178 @@
+{
+  "format": "CPS_LAYOUT_V1",
+  "workspace": "ThermalBench",
+  "savedAt": "2026-10-17 07:03:00",
+  "terminalPort": 9093,
+  "boards": [
+    {
+      "id": "BenchMasterMCU",
+      "model": "ESP32_WROOM",
+      "pins": [
+        { "id": "3V3", "mode": "DIGITAL_OUT", "voltage": 3.3 },
+        { "id": "GND", "mode": "DIGITAL_OUT", "voltage": 0.0 },
+        { "id": "GPIO_34", "mode": "ANALOG_IN", "voltage": 2.2 },
+        { "id": "GPIO_35", "mode": "ANALOG_IN", "voltage": 0.0 },
+        { "id": "GPIO_36", "mode": "ANALOG_IN", "voltage": 2.64 },
+        { "id": "GPIO_39", "mode": "ANALOG_IN", "voltage": 0.0 },
+        { "id": "GPIO_32", "mode": "ANALOG_IN", "voltage": 0.66 },
+        { "id": "GPIO_33", "mode": "ANALOG_IN", "voltage": 0.66 },
+        { "id": "GPIO_25", "mode": "ANALOG_IN", "voltage": 0.66 },
+        { "id": "GPIO_26", "mode": "ANALOG_IN", "voltage": 0.83 },
+        { "id": "GPIO_18", "mode": "PWM_OUT", "voltage": 0.5 },
+        { "id": "GPIO_23", "mode": "DIGITAL_OUT", "voltage": 3.3 }
+      ],
+      "components": [],
+      "firmware": {
+        "name": "ThermalBench_Firmware_v1.0",
+        "class": "ThermalBenchFirmware",
+        "parameters": {
+          "maxHotspotTempDegC": 95.0,
+          "maxOutputCurrentA": 21.0,
+          "nominalVout": 12.0,
+          "vinPin": "GPIO_34",
+          "iinPin": "GPIO_35",
+          "voutPin": "GPIO_36",
+          "ioutPin": "GPIO_39",
+          "tempMosfetPin": "GPIO_32",
+          "tempCorePin": "GPIO_33",
+          "tempDiodePin": "GPIO_25",
+          "tempAmbientPin": "GPIO_26",
+          "fanPwmPin": "GPIO_18",
+          "psuEnablePin": "GPIO_23"
+        }
+      },
+      "radioPort": 9092
+    },
+    {
+      "id": "BenchPowerSource",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "VIN_OUT", "mode": "DIGITAL_OUT", "voltage": 2.2 },
+        { "id": "IIN_SHUNT", "mode": "DIGITAL_OUT", "voltage": 0.0 }
+      ],
+      "components": []
+    },
+    {
+      "id": "PowerSupplyUnderTest",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "VOUT", "mode": "DIGITAL_OUT", "voltage": 2.64 }
+      ],
+      "components": []
+    },
+    {
+      "id": "Prog_DC_Load",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "IOUT_SENSE", "mode": "DIGITAL_OUT", "voltage": 0.0 }
+      ],
+      "components": []
+    },
+    {
+      "id": "ThermocoupleArray",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "T_MOSFET", "mode": "DIGITAL_OUT", "voltage": 0.66 },
+        { "id": "T_CORE", "mode": "DIGITAL_OUT", "voltage": 0.66 },
+        { "id": "T_DIODE", "mode": "DIGITAL_OUT", "voltage": 0.66 }
+      ],
+      "components": []
+    },
+    {
+      "id": "ThermalChamber",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "T_AMBIENT", "mode": "DIGITAL_OUT", "voltage": 0.83 }
+      ],
+      "components": []
+    },
+    {
+      "id": "CoolingFanModule",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "PWM_IN", "mode": "DIGITAL_IN", "voltage": 0.5 }
+      ],
+      "components": []
+    },
+    {
+      "id": "SafetyCutoffRelay",
+      "model": "CUSTOM",
+      "pins": [
+        { "id": "ENABLE_IN", "mode": "DIGITAL_IN", "voltage": 3.3 }
+      ],
+      "components": []
+    }
+  ],
+  "wires": [
+    {
+      "name": "w_vin",
+      "fromBoard": "BenchPowerSource",
+      "fromPin": "VIN_OUT",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_34"
+    },
+    {
+      "name": "w_iin",
+      "fromBoard": "BenchPowerSource",
+      "fromPin": "IIN_SHUNT",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_35"
+    },
+    {
+      "name": "w_vout",
+      "fromBoard": "PowerSupplyUnderTest",
+      "fromPin": "VOUT",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_36"
+    },
+    {
+      "name": "w_iout",
+      "fromBoard": "Prog_DC_Load",
+      "fromPin": "IOUT_SENSE",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_39"
+    },
+    {
+      "name": "w_t_mosfet",
+      "fromBoard": "ThermocoupleArray",
+      "fromPin": "T_MOSFET",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_32"
+    },
+    {
+      "name": "w_t_core",
+      "fromBoard": "ThermocoupleArray",
+      "fromPin": "T_CORE",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_33"
+    },
+    {
+      "name": "w_t_diode",
+      "fromBoard": "ThermocoupleArray",
+      "fromPin": "T_DIODE",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_25"
+    },
+    {
+      "name": "w_t_amb",
+      "fromBoard": "ThermalChamber",
+      "fromPin": "T_AMBIENT",
+      "toBoard": "BenchMasterMCU",
+      "toPin": "GPIO_26"
+    },
+    {
+      "name": "w_fan",
+      "fromBoard": "BenchMasterMCU",
+      "fromPin": "GPIO_18",
+      "toBoard": "CoolingFanModule",
+      "toPin": "PWM_IN"
+    },
+    {
+      "name": "w_safety",
+      "fromBoard": "BenchMasterMCU",
+      "fromPin": "GPIO_23",
+      "toBoard": "SafetyCutoffRelay",
+      "toPin": "ENABLE_IN"
+    }
+  ]
+}

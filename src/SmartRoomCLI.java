@@ -328,12 +328,18 @@ public class SmartRoomCLI {
                     CpsDomain.Board b = boards().get(parts[1]);
                     if (b == null) { System.out.println("[ERR] Board not found: " + parts[1]); return; }
                     String fwName = (parts.length > 2) ? parts[2] : "SmartRoomFirmware";
-                    int hysSec = (parts.length > 3) ? Integer.parseInt(parts[3]) : 30;
-                    SmartRoomFirmware fw = new SmartRoomFirmware(hysSec);
-                    b.flashFirmware(fw);
-                    fusionFirmware = fw;
-                    System.out.printf("[FLASH] Successfully flashed %s on %s (Hysteresis = %ds)%n",
-                        fw.getName(), parts[1], hysSec);
+                    if (fwName.toLowerCase().contains("thermal")) {
+                        ThermalBenchFirmware fw = new ThermalBenchFirmware();
+                        b.flashFirmware(fw);
+                        System.out.printf("[FLASH] Successfully flashed %s on %s%n", fw.getName(), parts[1]);
+                    } else {
+                        int hysSec = (parts.length > 3) ? Integer.parseInt(parts[3]) : 30;
+                        SmartRoomFirmware fw = new SmartRoomFirmware(hysSec);
+                        b.flashFirmware(fw);
+                        fusionFirmware = fw;
+                        System.out.printf("[FLASH] Successfully flashed %s on %s (Hysteresis = %ds)%n",
+                            fw.getName(), parts[1], hysSec);
+                    }
                 }
 
                 // ── attach fusion RoomMasterMCU [900] (backward compatibility) ─

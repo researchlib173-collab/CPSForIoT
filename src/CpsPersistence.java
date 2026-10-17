@@ -292,6 +292,36 @@ public class CpsPersistence {
                 SmartRoomFirmware fw = new SmartRoomFirmware(
                     pirPin, doorPin, radarPin, lightPin, hvacPin, hysSec, radarThresh);
                 board.flashFirmware(fw);
+            } else if (fwClass.contains("ThermalBench") || fwName.contains("ThermalBench")) {
+                double maxOtp = 95.0;
+                if (params.get("maxHotspotTempDegC") instanceof Number) {
+                    maxOtp = ((Number) params.get("maxHotspotTempDegC")).doubleValue();
+                }
+                double maxOcp = 21.0;
+                if (params.get("maxOutputCurrentA") instanceof Number) {
+                    maxOcp = ((Number) params.get("maxOutputCurrentA")).doubleValue();
+                }
+                double vNom = 12.0;
+                if (params.get("nominalVout") instanceof Number) {
+                    vNom = ((Number) params.get("nominalVout")).doubleValue();
+                }
+
+                String vinPin   = (String) params.getOrDefault("vinPin", "GPIO_34");
+                String iinPin   = (String) params.getOrDefault("iinPin", "GPIO_35");
+                String voutPin  = (String) params.getOrDefault("voutPin", "GPIO_36");
+                String ioutPin  = (String) params.getOrDefault("ioutPin", "GPIO_39");
+                String tMosfet  = (String) params.getOrDefault("tempMosfetPin", "GPIO_32");
+                String tCore    = (String) params.getOrDefault("tempCorePin", "GPIO_33");
+                String tDiode   = (String) params.getOrDefault("tempDiodePin", "GPIO_25");
+                String tAmb     = (String) params.getOrDefault("tempAmbientPin", "GPIO_26");
+                String fanPin   = (String) params.getOrDefault("fanPwmPin", "GPIO_18");
+                String psuEnPin = (String) params.getOrDefault("psuEnablePin", "GPIO_23");
+
+                ThermalBenchFirmware fw = new ThermalBenchFirmware(
+                    vinPin, iinPin, voutPin, ioutPin,
+                    tMosfet, tCore, tDiode, tAmb,
+                    fanPin, psuEnPin, maxOtp, maxOcp, vNom);
+                board.flashFirmware(fw);
             }
         }
 
