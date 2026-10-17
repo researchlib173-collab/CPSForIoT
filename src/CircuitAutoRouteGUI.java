@@ -84,6 +84,24 @@ public class CircuitAutoRouteGUI extends JFrame {
         });
     }
 
+    public static void main(String[] args) {
+        String layoutName = (args.length > 0 && args[0].toLowerCase().contains("thermal"))
+            ? "layouts/thermal_bench_rig.json"
+            : (args.length > 0 ? args[0] : "layouts/smart_room_demo.json");
+        File f = new File(layoutName);
+        if (!f.exists() && !layoutName.startsWith("layouts/")) f = new File("layouts", layoutName);
+        if (f.exists()) {
+            try {
+                CpsPersistence.LayoutData data = CpsPersistence.loadLayout(f);
+                launch(data.workspaceName, data.boards, data.wires);
+            } catch (Exception ex) {
+                System.err.println("[AUTOROUTE] Failed to load layout: " + ex.getMessage());
+            }
+        } else {
+            System.err.println("[AUTOROUTE] Layout file not found: " + layoutName);
+        }
+    }
+
     private void loadComponentImages() {
         imageCache.clear();
         for (CpsDomain.Board b : boards.values()) {
@@ -162,7 +180,9 @@ public class CircuitAutoRouteGUI extends JFrame {
             curY += ySpacing;
         }
 
-        curY = yStart + 40;
+        int totalRows = Math.max(inputs.size(), outputs.size());
+        int mcuCenterOffset = Math.max(0, (totalRows * ySpacing - 320) / 2);
+        curY = yStart + mcuCenterOffset;
         for (CpsDomain.Board b : mcus) {
             b.layoutX = col2X;
             b.layoutY = curY;

@@ -85,7 +85,45 @@ public class TestVisualFeatures {
         // Execute CLI autoroute
         SmartRoomCLI.process("autoroute");
         SmartRoomCLI.process("aroute");
-        System.out.println("  ✓ CLI commands pinfix, autoroute, and aroute executed without error!");
+        // 4. Test Thermal-Aware Power Supply Benchmark Rig Auto-Routing
+        System.out.println("\n[TEST 4] Thermal Bench Rig Layout, Assets & Auto-Routing...");
+        File thermalLayoutFile = new File("layouts/thermal_bench_rig.json");
+        assert thermalLayoutFile.exists() : "thermal_bench_rig.json must exist in layouts/";
+        CpsPersistence.LayoutData thermalLayout = CpsPersistence.loadLayout(thermalLayoutFile);
+
+        System.out.printf("  Loaded workspace: '%s' (%d boards, %d wires)%n",
+            thermalLayout.workspaceName, thermalLayout.boards.size(), thermalLayout.wires.size());
+        assert thermalLayout.boards.size() == 8 : "Thermal bench must have exactly 8 boards";
+        assert thermalLayout.wires.size() == 10 : "Thermal bench must have exactly 10 wires";
+
+        String[] expectedBoards = {
+            "BenchMasterMCU", "BenchPowerSource", "PowerSupplyUnderTest",
+            "ThermocoupleArray", "ThermalChamber", "Prog_DC_Load",
+            "CoolingFanModule", "SafetyCutoffRelay"
+        };
+
+        for (String bId : expectedBoards) {
+            CpsDomain.Board b = thermalLayout.boards.get(bId);
+            assert b != null : "Missing expected board: " + bId;
+            assert b.imagePath != null : "Board " + bId + " must have imagePath";
+            File imgF = new File(b.imagePath);
+            assert imgF.exists() : "Image file does not exist: " + b.imagePath;
+            assert !b.pinPositions.isEmpty() : "Board " + bId + " must have calibrated pinPositions";
+            System.out.printf("    ✓ %-24s -> image: %-30s (pins: %d, calibrated: %d)%n",
+                bId, imgF.getName(), b.pins.size(), b.pinPositions.size());
+        }
+
+        // Verify wire pin connections
+        for (CpsDomain.Wire w : thermalLayout.wires) {
+            assert w.pinA != null && w.pinB != null : "Wire " + w.wireName + " has null pins";
+            assert w.pinA.pinId != null && w.pinB.pinId != null : "Wire pins must have IDs";
+            assert !w.pinA.connectedWires.isEmpty() && !w.pinB.connectedWires.isEmpty() : "Pins must be attached";
+        }
+        System.out.printf("  ✓ All %d wires successfully verified with valid pin attachments!%n", thermalLayout.wires.size());
+
+        // Test CLI execution: "autoroute thermal"
+        SmartRoomCLI.process("autoroute thermal");
+        System.out.println("  ✓ CLI 'autoroute thermal' executed and loaded layout successfully!");
 
         // Clean up temporary test files
         if (tempBoardFile.exists()) tempBoardFile.delete();

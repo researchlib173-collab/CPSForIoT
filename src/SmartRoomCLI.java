@@ -67,7 +67,7 @@ public class SmartRoomCLI {
         System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
         System.out.println("║  flash <BOARD> <FIRMWARE> [sec]   flash on-board firmware    ║");
         System.out.println("║  pinfix <BOARD> [IMAGE]           calibrate pin dots on image║");
-        System.out.println("║  autoroute / aroute               visual circuit schematic   ║");
+        System.out.println("║  autoroute / aroute [NAME/FILE]   visual circuit schematic   ║");
         System.out.println("║  sim start|stop|status            clock engine control       ║");
         System.out.println("║  list boards|wires|workspaces     inspect <BOARD>            ║");
         System.out.println("║  exit                                                        ║");
@@ -303,8 +303,35 @@ public class SmartRoomCLI {
                     }
                 }
 
-                // ── autoroute or aroute ───────────────────────────────────────
+                // ── autoroute or aroute [workspace|file] ───────────────────────
                 case "autoroute", "aroute" -> {
+                    if (parts.length > 1) {
+                        String target = parts[1].toLowerCase();
+                        File targetFile = null;
+                        if (target.contains("thermal")) {
+                            targetFile = new File("layouts/thermal_bench_rig.json");
+                        } else if (target.contains("smart") || target.contains("room")) {
+                            targetFile = new File("layouts/smart_room_demo.json");
+                        } else {
+                            File f = new File(parts[1]);
+                            if (!f.exists() && !parts[1].startsWith("layouts/")) f = new File("layouts", parts[1]);
+                            if (f.exists()) targetFile = f;
+                        }
+
+                        if (targetFile != null && targetFile.exists()) {
+                            try {
+                                CpsPersistence.LayoutData data = CpsPersistence.loadLayout(targetFile);
+                                activeWorkspace = data.workspaceName;
+                                workspaces.put(activeWorkspace, data.boards);
+                                wires.clear();
+                                wires.addAll(data.wires);
+                                System.out.printf("[LAYOUT] Switched to workspace '%s' (%d boards, %d wires) from: %s%n",
+                                    activeWorkspace, boards().size(), wires.size(), targetFile.getName());
+                            } catch (Exception ex) {
+                                System.err.println("[LAYOUT] Error loading layout: " + ex.getMessage());
+                            }
+                        }
+                    }
                     System.out.printf("[AUTOROUTE] Opening visual circuit schematic for workspace '%s' (%d boards, %d wires)...%n",
                         activeWorkspace, boards().size(), wires.size());
                     CircuitAutoRouteGUI.launch(activeWorkspace, boards(), wires);

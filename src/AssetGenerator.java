@@ -23,8 +23,13 @@ public class AssetGenerator {
         generateRadarSensor(new File(assetsDir, "radar_sensor.png"));
         generateRelayModule(new File(assetsDir, "relay_module.png"));
         generateElectronicLoad(new File(assetsDir, "electronic_load.png"));
+        generateBenchPowerSource(new File(assetsDir, "bench_power_source.png"));
+        generatePowerSupplyUnderTest(new File(assetsDir, "power_supply_under_test.png"));
+        generateThermocoupleArray(new File(assetsDir, "thermocouple_array.png"));
+        generateThermalChamber(new File(assetsDir, "thermal_chamber.png"));
+        generateCoolingFan(new File(assetsDir, "cooling_fan_module.png"));
 
-        System.out.println("[ASSETS] Generated 6 default component images in assets/");
+        System.out.println("[ASSETS] Generated 11 component images in assets/");
     }
 
     // 1. ESP32-WROOM DevKit (400 x 560 px)
@@ -293,6 +298,283 @@ public class AssetGenerator {
         drawSolderPad(g2, 160, 270, "LOAD-");
         drawSolderPad(g2, 240, 270, "SENSE+");
         drawSolderPad(g2, 320, 270, "SENSE-");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 7. Adjustable Benchtop DC Power Supply (400 x 300 px)
+    private static void generateBenchPowerSource(File file) throws IOException {
+        int w = 400, h = 300;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // Metallic Slate Chassis
+        g2.setColor(new Color(26, 32, 44));
+        g2.fillRoundRect(20, 20, 360, 260, 14, 14);
+        g2.setColor(new Color(66, 80, 102));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 20, 360, 260, 14, 14);
+
+        // Top Title
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        g2.drawString("BENCH DC POWER SUPPLY", 100, 46);
+
+        // Dual LED Digital Meters (Voltage & Current)
+        g2.setColor(new Color(12, 16, 22));
+        g2.fillRoundRect(40, 60, 150, 75, 6, 6);
+        g2.fillRoundRect(210, 60, 150, 75, 6, 6);
+
+        g2.setColor(new Color(255, 61, 0)); // Red Voltmeter
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 20));
+        g2.drawString("24.00 V", 65, 105);
+
+        g2.setColor(new Color(0, 230, 118)); // Green Ammeter
+        g2.drawString(" 8.50 A", 235, 105);
+
+        // Rotary Control Knobs
+        g2.setColor(new Color(75, 85, 105));
+        g2.fillOval(75, 155, 45, 45);
+        g2.fillOval(175, 155, 45, 45);
+        g2.fillOval(275, 155, 45, 45);
+
+        g2.setColor(Color.LIGHT_GRAY);
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 9));
+        g2.drawString("V-COARSE", 70, 215);
+        g2.drawString("V-FINE", 178, 215);
+        g2.drawString("I-LIMIT", 276, 215);
+
+        // Bottom Heavy Binding Posts: VIN_OUT, IIN_SHUNT, GND
+        drawSolderPad(g2, 120, 250, "VIN_OUT");
+        drawSolderPad(g2, 200, 250, "IIN_SHUNT");
+        drawSolderPad(g2, 280, 250, "GND");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 8. Power Supply Under Test (PSU) Converter Board (420 x 320 px)
+    private static void generatePowerSupplyUnderTest(File file) throws IOException {
+        int w = 420, h = 320;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // FR4 PCB (Dark Industrial Green)
+        g2.setColor(new Color(20, 48, 32));
+        g2.fillRoundRect(20, 20, 380, 280, 12, 12);
+        g2.setColor(new Color(40, 100, 68));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 20, 380, 280, 12, 12);
+
+        // Title
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        g2.drawString("POWER SUPPLY UNDER TEST (PSU)", 85, 45);
+
+        // Extruded Aluminium Heatsink for Switching MOSFETs
+        g2.setColor(new Color(110, 120, 135));
+        g2.fillRoundRect(50, 65, 80, 120, 6, 6);
+        g2.setColor(new Color(60, 70, 85));
+        for (int fx = 60; fx < 125; fx += 15) {
+            g2.fillRect(fx, 65, 6, 120);
+        }
+        g2.setColor(new Color(255, 204, 0));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 9));
+        g2.drawString("MOSFET", 64, 200);
+
+        // Heavy Ferrite Core Transformer in Center
+        g2.setColor(new Color(30, 32, 40));
+        g2.fillRoundRect(160, 75, 100, 95, 8, 8);
+        g2.setColor(new Color(184, 115, 51)); // Copper windings
+        g2.fillRect(175, 85, 70, 75);
+        g2.setColor(new Color(212, 140, 60));
+        for (int wy = 90; wy < 155; wy += 8) {
+            g2.drawLine(175, wy, 245, wy);
+        }
+        g2.setColor(Color.WHITE);
+        g2.drawString("TRANSFORMER", 168, 190);
+
+        // Filter Capacitors on Right
+        g2.setColor(new Color(40, 50, 70));
+        g2.fillOval(290, 70, 40, 40);
+        g2.fillOval(290, 125, 40, 40);
+        g2.setColor(new Color(200, 205, 215));
+        g2.fillOval(305, 85, 10, 10);
+        g2.fillOval(305, 140, 10, 10);
+
+        // Terminals: VIN_IN on left, VOUT & GND on right
+        drawSolderPad(g2, 60, 240, "VIN_IN");
+        drawSolderPad(g2, 360, 240, "VOUT");
+        drawSolderPad(g2, 360, 140, "GND");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 9. 4-Channel Type-K Thermocouple Array & Cold-Junction DAQ (380 x 280 px)
+    private static void generateThermocoupleArray(File file) throws IOException {
+        int w = 380, h = 280;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // High precision DAQ PCB (Deep Blue-Violet)
+        g2.setColor(new Color(36, 28, 62));
+        g2.fillRoundRect(20, 20, 340, 240, 12, 12);
+        g2.setColor(new Color(78, 62, 128));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 20, 340, 240, 12, 12);
+
+        // Title
+        g2.setColor(new Color(200, 190, 255));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        g2.drawString("4-CH THERMOCOUPLE ARRAY", 75, 44);
+
+        // 4 Yellow Mini Type-K Female Connector Blocks on Left
+        String[] chLabels = {"CH1: MOSFET", "CH2: CORE", "CH3: DIODE", "CH4: AMBIENT"};
+        int[] chY = {60, 110, 160, 210};
+        for (int i = 0; i < 4; i++) {
+            // Yellow socket
+            g2.setColor(new Color(245, 200, 35));
+            g2.fillRoundRect(45, chY[i] - 12, 50, 24, 4, 4);
+            g2.setColor(new Color(180, 140, 15));
+            g2.drawRoundRect(45, chY[i] - 12, 50, 24, 4, 4);
+            // Plug contacts
+            g2.setColor(new Color(50, 50, 50));
+            g2.fillRect(52, chY[i] - 4, 10, 8);
+            g2.fillRect(72, chY[i] - 3, 14, 6);
+
+            // Channel text
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
+            g2.drawString(chLabels[i], 105, chY[i] + 4);
+        }
+
+        // Amplifier IC in Center
+        g2.setColor(new Color(20, 22, 28));
+        g2.fillRoundRect(200, 110, 50, 60, 4, 4);
+        g2.setColor(new Color(0, 229, 255));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 9));
+        g2.drawString("MAX", 212, 135);
+        g2.drawString("31855", 206, 150);
+
+        // Output Solder Pads on Right Edge: T_MOSFET, T_CORE, T_DIODE, T_AMBIENT
+        drawSolderPad(g2, 320, 60, "T_MOSFET");
+        drawSolderPad(g2, 320, 110, "T_CORE");
+        drawSolderPad(g2, 320, 160, "T_DIODE");
+        drawSolderPad(g2, 320, 210, "T_AMBIENT");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 10. Environmental Thermal Chamber / Oven (400 x 320 px)
+    private static void generateThermalChamber(File file) throws IOException {
+        int w = 400, h = 320;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // Insulated Double-Wall Chamber (Stainless Steel / Thermal Silver)
+        g2.setColor(new Color(42, 48, 60));
+        g2.fillRoundRect(25, 20, 350, 280, 14, 14);
+        g2.setColor(new Color(85, 95, 115));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(25, 20, 350, 280, 14, 14);
+
+        // Header Title
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        g2.drawString("THERMAL CHAMBER (25°C - 85°C)", 75, 45);
+
+        // Chamber Inspection Window / Cavity
+        g2.setColor(new Color(20, 24, 30));
+        g2.fillRoundRect(45, 65, 180, 160, 8, 8);
+        g2.setColor(new Color(255, 110, 64, 80)); // Orange thermal heating glow
+        g2.fillRoundRect(50, 70, 170, 150, 6, 6);
+
+        // Heating element coils inside window
+        g2.setColor(new Color(255, 87, 34));
+        g2.setStroke(new BasicStroke(2.0f));
+        for (int hy = 90; hy <= 190; hy += 25) {
+            g2.drawArc(65, hy, 40, 20, 0, 180);
+            g2.drawArc(105, hy, 40, 20, 180, 180);
+            g2.drawArc(145, hy, 40, 20, 0, 180);
+        }
+
+        // Digital Temperature Controller Display on Right
+        g2.setColor(new Color(15, 18, 25));
+        g2.fillRoundRect(245, 65, 110, 60, 6, 6);
+        g2.setColor(new Color(255, 61, 0)); // Bright thermal red
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
+        g2.drawString("65.0°C", 260, 102);
+
+        // Status Indicators
+        g2.setColor(new Color(0, 230, 118)); // Green HEATING status
+        g2.fillOval(255, 145, 10, 10);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
+        g2.drawString("HEATER ACTIVE", 272, 154);
+
+        // Output Terminals: T_AMBIENT and HEATER_CTRL
+        drawSolderPad(g2, 230, 260, "HEATER_CTRL");
+        drawSolderPad(g2, 330, 260, "T_AMBIENT");
+
+        g2.dispose();
+        ImageIO.write(img, "PNG", file);
+    }
+
+    // 11. Variable-Speed High-RPM 4-Wire PWM Cooling Fan (360 x 340 px)
+    private static void generateCoolingFan(File file) throws IOException {
+        int w = 360, h = 340;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = setupGraphics(img);
+
+        // 120mm Industrial Fan Outer Frame (Dark Polycarbonate)
+        g2.setColor(new Color(25, 28, 35));
+        g2.fillRoundRect(20, 20, 320, 260, 16, 16);
+        g2.setColor(new Color(60, 70, 85));
+        g2.setStroke(new BasicStroke(2.0f));
+        g2.drawRoundRect(20, 20, 320, 260, 16, 16);
+
+        // 4 Corner Screw Mounting Holes
+        g2.setColor(new Color(15, 18, 22));
+        g2.fillOval(35, 35, 16, 16);
+        g2.fillOval(305, 35, 16, 16);
+        g2.fillOval(35, 245, 16, 16);
+        g2.fillOval(305, 245, 16, 16);
+
+        // Circular Rotor Housing / Venturi
+        int cx = 180, cy = 150;
+        g2.setColor(new Color(15, 18, 22));
+        g2.fillOval(cx - 100, cy - 100, 200, 200);
+        g2.setColor(new Color(50, 60, 75));
+        g2.drawOval(cx - 100, cy - 100, 200, 200);
+
+        // 7 Curved Aerodynamic Fan Blades
+        g2.setColor(new Color(40, 48, 62));
+        for (int i = 0; i < 7; i++) {
+            double angle = i * (2 * Math.PI / 7);
+            int x1 = cx + (int) (25 * Math.cos(angle));
+            int y1 = cy + (int) (25 * Math.sin(angle));
+            int x2 = cx + (int) (90 * Math.cos(angle + 0.5));
+            int y2 = cy + (int) (90 * Math.sin(angle + 0.5));
+            g2.setStroke(new BasicStroke(7.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine(x1, y1, x2, y2);
+        }
+
+        // Central Motor Hub with Label
+        g2.setColor(new Color(20, 25, 34));
+        g2.fillOval(cx - 30, cy - 30, 60, 60);
+        g2.setColor(new Color(0, 229, 255));
+        g2.drawOval(cx - 30, cy - 30, 60, 60);
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 9));
+        g2.drawString("12V PWM", cx - 22, cy + 4);
+
+        // 4-Pin Wire Harness at Bottom: PWM_IN, TACH, VCC, GND
+        drawSolderPad(g2, 90, 290, "PWM_IN");
+        drawSolderPad(g2, 150, 290, "TACH");
+        drawSolderPad(g2, 210, 290, "VCC");
+        drawSolderPad(g2, 270, 290, "GND");
 
         g2.dispose();
         ImageIO.write(img, "PNG", file);
