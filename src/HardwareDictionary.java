@@ -122,15 +122,42 @@ public class HardwareDictionary {
 
     public static CpsDomain.Board createESP32(String name) {
         CpsDomain.Board board = new CpsDomain.Board(name, "ESP32_WROOM");
-        board.addPin("3V3",     CpsDomain.PinMode.DIGITAL_OUT);
+        // Left Column Header (15 standard pins)
+        board.addPin("EN",      CpsDomain.PinMode.DIGITAL_IN);
+        board.addPin("GPIO_36", CpsDomain.PinMode.ANALOG_IN); // SENSOR_VP / ADC1_CH0
+        board.addPin("GPIO_39", CpsDomain.PinMode.ANALOG_IN); // SENSOR_VN / ADC1_CH3
+        board.addPin("GPIO_34", CpsDomain.PinMode.ANALOG_IN); // ADC1_CH6
+        board.addPin("GPIO_35", CpsDomain.PinMode.ANALOG_IN); // ADC1_CH7
+        board.addPin("GPIO_32", CpsDomain.PinMode.ANALOG_IN); // ADC1_CH4 / Touch 9
+        board.addPin("GPIO_33", CpsDomain.PinMode.ANALOG_IN); // ADC1_CH5 / Touch 8
+        board.addPin("GPIO_25", CpsDomain.PinMode.ANALOG_IN); // DAC1 / ADC2_CH8
+        board.addPin("GPIO_26", CpsDomain.PinMode.ANALOG_IN); // DAC2 / ADC2_CH9
+        board.addPin("GPIO_27", CpsDomain.PinMode.ANALOG_IN); // Touch 7 / ADC2_CH7
+        board.addPin("GPIO_14", CpsDomain.PinMode.DIGITAL_IN); // HSPI_CLK
+        board.addPin("GPIO_12", CpsDomain.PinMode.DIGITAL_IN); // HSPI_MISO
+        board.addPin("GPIO_13", CpsDomain.PinMode.DIGITAL_IN); // HSPI_MOSI
         board.addPin("GND",     CpsDomain.PinMode.DIGITAL_OUT);
-        board.addPin("GPIO_04", CpsDomain.PinMode.ANALOG_IN);
-        board.addPin("GPIO_12", CpsDomain.PinMode.DIGITAL_IN);
-        board.addPin("GPIO_14", CpsDomain.PinMode.DIGITAL_IN);
-        board.addPin("GPIO_27", CpsDomain.PinMode.ANALOG_IN);
-        board.addPin("GPIO_21", CpsDomain.PinMode.PWM_OUT);
-        board.addPin("GPIO_22", CpsDomain.PinMode.PWM_OUT);
+        board.addPin("VIN",     CpsDomain.PinMode.DIGITAL_OUT); // 5V External Power In
+
+        // Right Column Header (15 standard pins)
+        board.addPin("GPIO_23", CpsDomain.PinMode.DIGITAL_OUT); // VSPI_MOSI
+        board.addPin("GPIO_22", CpsDomain.PinMode.PWM_OUT);     // I2C_SCL
+        board.addPin("GPIO_01", CpsDomain.PinMode.DIGITAL_OUT); // UART0_TX
+        board.addPin("GPIO_03", CpsDomain.PinMode.DIGITAL_IN);  // UART0_RX
+        board.addPin("GPIO_21", CpsDomain.PinMode.PWM_OUT);     // I2C_SDA
+        board.addPin("GPIO_19", CpsDomain.PinMode.DIGITAL_IN);  // VSPI_MISO
+        board.addPin("GPIO_18", CpsDomain.PinMode.PWM_OUT);     // VSPI_CLK
+        board.addPin("GPIO_05", CpsDomain.PinMode.DIGITAL_OUT); // VSPI_CS
+        board.addPin("GPIO_17", CpsDomain.PinMode.DIGITAL_OUT); // UART2_TX
+        board.addPin("GPIO_16", CpsDomain.PinMode.DIGITAL_IN);  // UART2_RX
+        board.addPin("GPIO_04", CpsDomain.PinMode.ANALOG_IN);  // Touch 0 / ADC2_CH0
+        board.addPin("GPIO_00", CpsDomain.PinMode.DIGITAL_IN);  // BOOT Strapping Pin
+        board.addPin("GPIO_02", CpsDomain.PinMode.DIGITAL_OUT); // On-board Blue LED
+        board.addPin("GPIO_15", CpsDomain.PinMode.DIGITAL_OUT); // HSPI_CS
+        board.addPin("3V3",     CpsDomain.PinMode.DIGITAL_OUT); // 3.3V Regulated Output
+
         board.getPin("3V3").setVoltage(3.3);
+        if (board.getPin("VIN") != null) board.getPin("VIN").setVoltage(5.0);
 
         board.baseLogic = () -> {
             if (board.socketBridge != null) {
