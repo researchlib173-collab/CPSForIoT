@@ -42,12 +42,31 @@ public class CpsDomain {
         public PinMode mode;
         public double voltage = 0.0;
         public SignalState digitalState = SignalState.LOW;
-        public List<Wire> connectedWires = new ArrayList<>();
+        public List<Wire> connectedWires = new CopyOnWriteArrayList<>();
+        public Board parentBoard = null;
+        public String boardId = null;
+
         public interface VoltageListener { void onVoltageChanged(double newVoltage); }
-        private List<VoltageListener> listeners = new ArrayList<>();
+        private List<VoltageListener> listeners = new CopyOnWriteArrayList<>();
 
         public Pin(String pinId, PinMode mode) { this.pinId = pinId; this.mode = mode; }
-        public void attachWire(Wire w) { connectedWires.add(w); }
+        public Pin(String pinId, PinMode mode, Board parentBoard) {
+            this.pinId = pinId;
+            this.mode = mode;
+            this.parentBoard = parentBoard;
+            if (parentBoard != null) this.boardId = parentBoard.getId();
+        }
+
+        public void attachWire(Wire w) {
+            if (w != null && !connectedWires.contains(w)) {
+                connectedWires.add(w);
+            }
+        }
+
+        public void detachWire(Wire w) {
+            connectedWires.remove(w);
+        }
+
         public void addVoltageListener(VoltageListener l) { listeners.add(l); }
 
         public void setVoltage(double v) {
@@ -56,20 +75,366 @@ public class CpsDomain {
             for (Wire w : connectedWires) w.propagate(this, v);
             for (VoltageListener l : listeners) l.onVoltageChanged(v);
         }
+
+        public Board getParentBoard() { return parentBoard; }
+        public String getBoardId() {
+            return (parentBoard != null) ? parentBoard.getId() : (boardId != null ? boardId : "UNKNOWN");
+        }
+    }
+
+    public static class AmbiguousWireConnectionException extends RuntimeException {
+        public AmbiguousWireConnectionException(String message) {
+            super(message);
+        }
     }
 
     public static class Wire {
         public String wireName;
         public Pin pinA, pinB;
-        public Wire(String name, Pin a, Pin b) { this.wireName = name; this.pinA = a; this.pinB = b; }
+        public List<Wire> connectedWires = new CopyOnWriteArrayList<>();
+
+        public Wire(String name, Pin a, Pin b) {
+            this.wireName = (name != null && !name.isEmpty()) ? name : "W_" + System.currentTimeMillis();
+            this.pinA = a;
+            this.pinB = b;
+            if (a != null) a.attachWire(this);
+            if (b != null) b.attachWire(this);
+        }
+
+        public Wire(String name, Pin a) {
+            this(name, a, null);
+        }
+
+        public Wire(String name) {
+            this(name, null, null);
+        }
+
+        public Wire(Pin a, Pin b) {
+            this("W_" + System.currentTimeMillis(), a, b);
+        }
+
+        // ─── 1. WIRE-TO-WIRE DIRECT CONNECTION (Syntax: wireA.connect(wireB)) ──────────
+
+        /**
+         * Connects this wire directly to another wire, establishing an electrical junction / tap.
+         * Bidirectional: both wires will reference each other and share electrical potential.
+         * Returns this wire for fluent chaining.
+         */
+        public Wire connectToWire(Wire otherWire) {
+            if (otherWire == null) throw new IllegalArgumentException("Target wire cannot be null");
+            if (otherWire == this) return this;
+
+            if (!this.connectedWires.contains(otherWire)) {
+                this.connectedWires.add(otherWire);
+            }
+            if (!otherWire.connectedWires.contains(this)) {
+                otherWire.connectedWires.add(this);
+            }
+
+            // Immediately synchronize electrical potentials across the entire junction net
+            syncNet();
+            return this;
+        }
+
+        /** Fluent alias: wireA.connect(wireB) */
+        public Wire connect(Wire otherWire) {
+            return connectToWire(otherWire);
+        }
+
+        /** Fluent alias: wireA.tap(wireB) — Taps this wire into target wire */
+        public Wire tap(Wire targetWire) {
+            return connectToWire(targetWire);
+        }
+
+        /** Fluent alias: wireA.splice(wireB) — Slices / merges with target wire */
+        public Wire splice(Wire targetWire) {
+            return connectToWire(targetWire);
+        }
+
+        /** Fluent alias: wireA.join(wireB) */
+        public Wire join(Wire targetWire) {
+            return connectToWire(targetWire);
+        }
+
+        /** Fluent alias: wireA.to(wireB) — Natural language wire connection */
+        public Wire to(Wire otherWire) {
+            return connectToWire(otherWire);
+        }
+
+        /** Fluent alias: wireA.branchFrom(wireB) */
+        public Wire branchFrom(Wire trunkWire) {
+            return connectToWire(trunkWire);
+        }
+
+        /** Fluent alias: wireA.branchTo(wireB) */
+        public Wire branchTo(Wire branchWire) {
+            return connectToWire(branchWire);
+        }
+
+        /** Static fluent connector: Wire.connect(wireA, wireB) */
+        public static Wire connect(Wire a, Wire b) {
+            if (a == null) throw new IllegalArgumentException("Wire a cannot be null");
+            return a.connectToWire(b);
+        }
+
+        /** Static fluent tap: Wire.tap(sourceWire, newWireName, tapPin) */
+        public static Wire tap(Wire sourceWire, String newWireName, Pin tapPin) {
+            Wire tapWire = new Wire(newWireName, tapPin, null);
+            tapWire.connectToWire(sourceWire);
+            return tapWire;
+        }
+
+        // ─── 2. WIRE-TO-COMPONENT CONNECTION WITH UNIQUENESS ENFORCEMENT ────────
+
+        /**
+         * Discovers all wires attached to a target component (Board, Component, or Component ID).
+         */
+        public static Set<Wire> findWiresForComponent(Object componentOrId, Collection<Wire> candidateWires, Map<String, Board> boards) {
+            Set<Wire> result = new LinkedHashSet<>();
+            if (componentOrId == null) return result;
+
+            Board targetBoard = null;
+            String targetId = null;
+
+            if (componentOrId instanceof Board b) {
+                targetBoard = b;
+                targetId = b.getId();
+            } else if (componentOrId instanceof ElectronicComponent ec) {
+                targetId = ec.getId();
+            } else if (componentOrId instanceof String s) {
+                targetId = s;
+                if (boards != null && boards.containsKey(s)) {
+                    targetBoard = boards.get(s);
+                }
+            }
+
+            // 1. If targetBoard is known, inspect all its pins directly
+            if (targetBoard != null) {
+                for (Pin p : targetBoard.pins.values()) {
+                    result.addAll(p.connectedWires);
+                }
+            }
+
+            // 2. Also search candidateWires if available
+            if (candidateWires != null && targetId != null) {
+                for (Wire w : candidateWires) {
+                    if (w == null) continue;
+                    if (w.pinA != null) {
+                        String bId = w.pinA.getBoardId();
+                        if (targetId.equalsIgnoreCase(bId)) result.add(w);
+                    }
+                    if (w.pinB != null) {
+                        String bId = w.pinB.getBoardId();
+                        if (targetId.equalsIgnoreCase(bId)) result.add(w);
+                    }
+                    if (targetBoard != null) {
+                        if (targetBoard.pins.containsValue(w.pinA) || targetBoard.pins.containsValue(w.pinB)) {
+                            result.add(w);
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /**
+         * Connects this wire to another wire by specifying the target component to which that wire is connected.
+         * Enforces the UNIQUENESS RULE:
+         * - If 0 wires are connected to the component: throws AmbiguousWireConnectionException.
+         * - If exactly 1 wire is connected to the component: connects to that unique wire [one to one] or [one to many]!
+         * - If > 1 wires are connected to the component: throws AmbiguousWireConnectionException (connection is ambiguous).
+         *
+         * @param componentOrId The target Board, Component, or Component ID
+         * @param candidateWires Collection of wires in the workspace (or null to use component's own pin wires)
+         * @param boards Map of workspace boards (or null)
+         * @return this Wire for chaining
+         * @throws AmbiguousWireConnectionException if the connection is not strictly unique (0 or >1)
+         */
+        public Wire connectToComponent(Object componentOrId, Collection<Wire> candidateWires, Map<String, Board> boards) {
+            Set<Wire> matchedWires = findWiresForComponent(componentOrId, candidateWires, boards);
+
+            // Exclude 'this' wire if it was already connected to the component
+            matchedWires.remove(this);
+
+            String compName = (componentOrId instanceof Board b) ? b.getId()
+                            : (componentOrId instanceof ElectronicComponent ec) ? ec.getId()
+                            : String.valueOf(componentOrId);
+
+            if (matchedWires.isEmpty()) {
+                throw new AmbiguousWireConnectionException(String.format(
+                    "Cannot connect wire '%s' to component '%s': No wires are currently connected to this component. " +
+                    "A target wire must already exist on the component to establish a wire-to-wire connection.",
+                    this.wireName, compName
+                ));
+            }
+
+            if (matchedWires.size() > 1) {
+                List<String> wireNames = new ArrayList<>();
+                for (Wire mw : matchedWires) wireNames.add(mw.wireName);
+                throw new AmbiguousWireConnectionException(String.format(
+                    "Cannot connect wire '%s' to component '%s': Connection is AMBIGUOUS. " +
+                    "Component has %d connected wires: %s. " +
+                    "A wire can connect to another wire by component reference IF AND ONLY IF that connection is UNIQUE [one to many] or [one to one]. " +
+                    "Please specify the exact wire name (e.g. wire.connectToWire(\"%s\")) or pin instead.",
+                    this.wireName, compName, matchedWires.size(), wireNames, wireNames.get(0)
+                ));
+            }
+
+            // Exactly ONE unique wire found! [one to one] or [one to many]
+            Wire targetWire = matchedWires.iterator().next();
+            return connectToWire(targetWire);
+        }
+
+        public Wire connectToComponent(Board board) {
+            return connectToComponent(board, null, null);
+        }
+
+        public Wire connectToComponent(Object componentOrId, Collection<Wire> candidateWires) {
+            return connectToComponent(componentOrId, candidateWires, null);
+        }
+
+        public Wire connectToWireOf(Board board) {
+            return connectToComponent(board, null, null);
+        }
+
+        public Wire connectToWireOf(Object componentOrId, Collection<Wire> candidateWires) {
+            return connectToComponent(componentOrId, candidateWires, null);
+        }
+
+        public Wire connect(Object target, Collection<Wire> candidateWires) {
+            if (target instanceof Wire w) {
+                return connectToWire(w);
+            }
+            return connectToComponent(target, candidateWires, null);
+        }
+
+        public Wire connect(Object target) {
+            if (target instanceof Wire w) {
+                return connectToWire(w);
+            }
+            return connectToComponent(target, null, null);
+        }
+
+        // ─── 3. NETLIST & ELECTRICAL PROPAGATION ────────────────────────────────
+
         public void propagate(Pin source, double v) {
+            propagate(source, v, new HashSet<>());
+        }
+
+        public void propagate(Pin source, double v, Set<Wire> visited) {
+            if (!visited.add(this)) return; // Prevents cycles across connected wires
+
             if (source == pinA && pinB != null) {
                 pinB.voltage = v;
                 pinB.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW;
             } else if (source == pinB && pinA != null) {
                 pinA.voltage = v;
                 pinA.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW;
+            } else if (source == null) {
+                // Incoming from connected wire junction: drive all non-null pins attached to this wire
+                if (pinA != null) {
+                    pinA.voltage = v;
+                    pinA.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW;
+                }
+                if (pinB != null) {
+                    pinB.voltage = v;
+                    pinB.digitalState = (v > 1.65) ? SignalState.HIGH : SignalState.LOW;
+                }
             }
+
+            // Propagate across all connected wires in the junction network
+            for (Wire cw : connectedWires) {
+                if (cw != null && !visited.contains(cw)) {
+                    cw.propagate(null, v, visited);
+                }
+            }
+        }
+
+        /**
+         * Gathers all reachable wires and pins in this equipotential electrical net
+         * and synchronizes all connected inputs to match the active driving voltage.
+         */
+        public void syncNet() {
+            Set<Wire> netWires = new HashSet<>();
+            gatherNetWires(netWires);
+
+            double driverVoltage = 0.0;
+            boolean hasDriver = false;
+
+            for (Wire w : netWires) {
+                if (w.pinA != null && (w.pinA.mode == PinMode.DIGITAL_OUT || w.pinA.mode == PinMode.PWM_OUT)) {
+                    driverVoltage = Math.max(driverVoltage, w.pinA.voltage);
+                    hasDriver = true;
+                }
+                if (w.pinB != null && (w.pinB.mode == PinMode.DIGITAL_OUT || w.pinB.mode == PinMode.PWM_OUT)) {
+                    driverVoltage = Math.max(driverVoltage, w.pinB.voltage);
+                    hasDriver = true;
+                }
+            }
+
+            if (!hasDriver) {
+                for (Wire w : netWires) {
+                    if (w.pinA != null) driverVoltage = Math.max(driverVoltage, w.pinA.voltage);
+                    if (w.pinB != null) driverVoltage = Math.max(driverVoltage, w.pinB.voltage);
+                }
+            }
+
+            for (Wire w : netWires) {
+                if (w.pinA != null && (w.pinA.mode == PinMode.DIGITAL_IN || w.pinA.mode == PinMode.ANALOG_IN)) {
+                    w.pinA.voltage = driverVoltage;
+                    w.pinA.digitalState = (driverVoltage > 1.65) ? SignalState.HIGH : SignalState.LOW;
+                }
+                if (w.pinB != null && (w.pinB.mode == PinMode.DIGITAL_IN || w.pinB.mode == PinMode.ANALOG_IN)) {
+                    w.pinB.voltage = driverVoltage;
+                    w.pinB.digitalState = (driverVoltage > 1.65) ? SignalState.HIGH : SignalState.LOW;
+                }
+            }
+        }
+
+        private void gatherNetWires(Set<Wire> visited) {
+            if (!visited.add(this)) return;
+            for (Wire cw : connectedWires) {
+                if (cw != null) cw.gatherNetWires(visited);
+            }
+        }
+
+        public boolean isJunction() {
+            return !connectedWires.isEmpty();
+        }
+
+        public List<Wire> getConnectedWires() {
+            return Collections.unmodifiableList(connectedWires);
+        }
+
+        public List<String> getConnectedWireNames() {
+            List<String> names = new ArrayList<>();
+            for (Wire cw : connectedWires) names.add(cw.wireName);
+            return names;
+        }
+
+        public Set<Wire> getAllWiresInNet() {
+            Set<Wire> set = new LinkedHashSet<>();
+            gatherNetWires(set);
+            return set;
+        }
+
+        public Set<Pin> getAllPinsInNet() {
+            Set<Pin> pins = new LinkedHashSet<>();
+            for (Wire w : getAllWiresInNet()) {
+                if (w.pinA != null) pins.add(w.pinA);
+                if (w.pinB != null) pins.add(w.pinB);
+            }
+            return pins;
+        }
+
+        public boolean isConnectedTo(Wire other) {
+            return getAllWiresInNet().contains(other);
+        }
+
+        public boolean isAttachedTo(Board b) {
+            if (b == null) return false;
+            return b.pins.containsValue(pinA) || b.pins.containsValue(pinB);
         }
     }
 
@@ -168,7 +533,10 @@ public class CpsDomain {
         private List<TickListener> tickListeners = new ArrayList<>();
 
         public Board(String id, String model) { super(id); this.model = model; }
-        public void addPin(String pinId, PinMode mode) { pins.put(pinId, new Pin(pinId, mode)); }
+        public void addPin(String pinId, PinMode mode) {
+            Pin p = new Pin(pinId, mode, this);
+            pins.put(pinId, p);
+        }
         public Pin getPin(String id) { return pins.get(id); }
         public void addComponent(ElectronicComponent c) { components.put(c.id, c); }
         public void addTickListener(TickListener l) { tickListeners.add(l); }

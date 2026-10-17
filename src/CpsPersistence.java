@@ -56,17 +56,26 @@ public class CpsPersistence {
         // Serialize wires
         List<Map<String, Object>> wiresList = new ArrayList<>();
         for (CpsDomain.Wire w : wires) {
-            if (w.pinA != null && w.pinB != null) {
-                Map<String, Object> wireMap = new LinkedHashMap<>();
-                wireMap.put("name", w.wireName);
+            Map<String, Object> wireMap = new LinkedHashMap<>();
+            wireMap.put("name", w.wireName);
+            if (w.pinA != null) {
                 String fromBoard = findBoardForPin(boards, w.pinA);
-                String toBoard   = findBoardForPin(boards, w.pinB);
                 wireMap.put("fromBoard", fromBoard);
                 wireMap.put("fromPin",   w.pinA.pinId);
-                wireMap.put("toBoard",   toBoard);
-                wireMap.put("toPin",     w.pinB.pinId);
-                wiresList.add(wireMap);
             }
+            if (w.pinB != null) {
+                String toBoard = findBoardForPin(boards, w.pinB);
+                wireMap.put("toBoard", toBoard);
+                wireMap.put("toPin",   w.pinB.pinId);
+            }
+            if (!w.connectedWires.isEmpty()) {
+                List<String> cwNames = new ArrayList<>();
+                for (CpsDomain.Wire cw : w.connectedWires) {
+                    cwNames.add(cw.wireName);
+                }
+                wireMap.put("connectedWires", cwNames);
+            }
+            wiresList.add(wireMap);
         }
         root.put("wires", wiresList);
 
@@ -106,6 +115,8 @@ public class CpsPersistence {
 
         // 2. Reconstitute Wires
         List<Object> wiresList = (List<Object>) root.get("wires");
+        Map<String, List<String>> deferredJunctions = new HashMap<>();
+
         if (wiresList != null) {
             for (Object wo : wiresList) {
                 if (wo instanceof Map) {
@@ -116,16 +127,36 @@ public class CpsPersistence {
                     String toBoard   = (String) wm.get("toBoard");
                     String toPin     = (String) wm.get("toPin");
 
-                    CpsDomain.Board b1 = layout.boards.get(fromBoard);
-                    CpsDomain.Board b2 = layout.boards.get(toBoard);
-                    if (b1 != null && b2 != null) {
-                        CpsDomain.Pin p1 = b1.getPin(fromPin);
-                        CpsDomain.Pin p2 = b2.getPin(toPin);
-                        if (p1 != null && p2 != null) {
-                            CpsDomain.Wire wire = new CpsDomain.Wire(wName, p1, p2);
-                            p1.attachWire(wire);
-                            p2.attachWire(wire);
-                            layout.wires.add(wire);
+                    CpsDomain.Board b1 = (fromBoard != null) ? layout.boards.get(fromBoard) : null;
+                    CpsDomain.Board b2 = (toBoard != null) ? layout.boards.get(toBoard) : null;
+                    CpsDomain.Pin p1   = (b1 != null && fromPin != null) ? b1.getPin(fromPin) : null;
+                    CpsDomain.Pin p2   = (b2 != null && toPin != null) ? b2.getPin(toPin) : null;
+
+                    CpsDomain.Wire wire = new CpsDomain.Wire(wName, p1, p2);
+                    layout.wires.add(wire);
+
+                    if (wm.containsKey("connectedWires")) {
+                        Object cwObj = wm.get("connectedWires");
+                        if (cwObj instanceof List) {
+                            List<String> cwNames = new ArrayList<>();
+                            for (Object o : (List<?>) cwObj) cwNames.add(String.valueOf(o));
+                            deferredJunctions.put(wName, cwNames);
+                        }
+                    }
+                }
+            }
+
+            // Reconnect wire-to-wire junctions
+            Map<String, CpsDomain.Wire> wireMapByName = new HashMap<>();
+            for (CpsDomain.Wire w : layout.wires) wireMapByName.put(w.wireName, w);
+
+            for (Map.Entry<String, List<String>> entry : deferredJunctions.entrySet()) {
+                CpsDomain.Wire source = wireMapByName.get(entry.getKey());
+                if (source != null) {
+                    for (String targetName : entry.getValue()) {
+                        CpsDomain.Wire target = wireMapByName.get(targetName);
+                        if (target != null && target != source) {
+                            source.connectToWire(target);
                         }
                     }
                 }

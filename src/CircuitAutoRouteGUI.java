@@ -682,40 +682,86 @@ public class CircuitAutoRouteGUI extends JFrame {
         // ─── AUTO-ROUTING WIRES ────────────────────────────────────────────────
         private void drawWires(Graphics2D g2) {
             for (CpsDomain.Wire w : wires) {
-                if (w.pinA == null || w.pinB == null) continue;
+                // Case 1: Standard 2-pin wire (with optional wire-to-wire junctions)
+                if (w.pinA != null && w.pinB != null) {
+                    CpsDomain.Board b1 = findBoardForPin(w.pinA);
+                    CpsDomain.Board b2 = findBoardForPin(w.pinB);
+                    if (b1 == null || b2 == null) continue;
 
-                CpsDomain.Board b1 = findBoardForPin(w.pinA);
-                CpsDomain.Board b2 = findBoardForPin(w.pinB);
-                if (b1 == null || b2 == null) continue;
+                    Point p1 = getAbsolutePinCoordinate(b1, w.pinA.pinId);
+                    Point p2 = getAbsolutePinCoordinate(b2, w.pinB.pinId);
 
-                Point p1 = getAbsolutePinCoordinate(b1, w.pinA.pinId);
-                Point p2 = getAbsolutePinCoordinate(b2, w.pinB.pinId);
+                    Rectangle rect1 = getBoardBounds(b1);
+                    Rectangle rect2 = getBoardBounds(b2);
 
-                Rectangle rect1 = getBoardBounds(b1);
-                Rectangle rect2 = getBoardBounds(b2);
+                    // Voltage-based wire coloring
+                    double v = Math.max(w.pinA.voltage, w.pinB.voltage);
+                    Color wireColor = getWireColor(v);
+                    Color glowColor = getWireGlowColor(v);
 
-                // Voltage-based wire coloring
-                double v = Math.max(w.pinA.voltage, w.pinB.voltage);
-                Color wireColor;
-                Color glowColor;
+                    if (useManhattanRouting) {
+                        drawManhattanWire(g2, p1, p2, rect1, rect2, wireColor, glowColor, w, v);
+                    } else {
+                        drawSplineWire(g2, p1, p2, wireColor, glowColor, w, v);
+                    }
 
-                if (v >= 2.0) {
-                    wireColor = new Color(0, 230, 118); // Bright emerald green
-                    glowColor = new Color(0, 230, 118, 60);
-                } else if (v > 0.6) {
-                    wireColor = new Color(255, 179, 0); // Vibrant Amber
-                    glowColor = new Color(255, 179, 0, 50);
-                } else {
-                    wireColor = new Color(100, 125, 145); // Slate metallic
-                    glowColor = new Color(100, 125, 145, 30);
+                    // Solder junction dot if other wires are tapped into this wire
+                    if (w.isJunction()) {
+                        Point mid = new Point((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+                        g2.setColor(new Color(212, 175, 55)); // Gold solder pad
+                        g2.fillOval(mid.x - 5, mid.y - 5, 10, 10);
+                        g2.setColor(wireColor);
+                        g2.fillOval(mid.x - 3, mid.y - 3, 6, 6);
+                    }
                 }
+                // Case 2: Tap wire connected from pinA to another wire
+                else if (w.pinA != null && w.pinB == null && !w.connectedWires.isEmpty()) {
+                    CpsDomain.Board b1 = findBoardForPin(w.pinA);
+                    if (b1 == null) continue;
+                    Point p1 = getAbsolutePinCoordinate(b1, w.pinA.pinId);
+                    Rectangle rect1 = getBoardBounds(b1);
 
-                if (useManhattanRouting) {
-                    drawManhattanWire(g2, p1, p2, rect1, rect2, wireColor, glowColor, w, v);
-                } else {
-                    drawSplineWire(g2, p1, p2, wireColor, glowColor, w, v);
+                    CpsDomain.Wire targetW = w.connectedWires.get(0);
+                    if (targetW.pinA != null && targetW.pinB != null) {
+                        CpsDomain.Board tb1 = findBoardForPin(targetW.pinA);
+                        CpsDomain.Board tb2 = findBoardForPin(targetW.pinB);
+                        if (tb1 != null && tb2 != null) {
+                            Point tp1 = getAbsolutePinCoordinate(tb1, targetW.pinA.pinId);
+                            Point tp2 = getAbsolutePinCoordinate(tb2, targetW.pinB.pinId);
+                            Point tapPoint = new Point((tp1.x + tp2.x) / 2, (tp1.y + tp2.y) / 2);
+                            Rectangle tapRect = new Rectangle(tapPoint.x - 10, tapPoint.y - 10, 20, 20);
+
+                            double v = w.pinA.voltage;
+                            Color wireColor = getWireColor(v);
+                            Color glowColor = getWireGlowColor(v);
+
+                            if (useManhattanRouting) {
+                                drawManhattanWire(g2, p1, tapPoint, rect1, tapRect, wireColor, glowColor, w, v);
+                            } else {
+                                drawSplineWire(g2, p1, tapPoint, wireColor, glowColor, w, v);
+                            }
+
+                            // Solder junction dot at tap
+                            g2.setColor(new Color(212, 175, 55));
+                            g2.fillOval(tapPoint.x - 6, tapPoint.y - 6, 12, 12);
+                            g2.setColor(wireColor);
+                            g2.fillOval(tapPoint.x - 3, tapPoint.y - 3, 6, 6);
+                        }
+                    }
                 }
             }
+        }
+
+        private Color getWireColor(double v) {
+            if (v >= 2.0) return new Color(0, 230, 118); // Bright emerald green
+            if (v > 0.6)  return new Color(255, 179, 0); // Vibrant Amber
+            return new Color(100, 125, 145);             // Slate metallic
+        }
+
+        private Color getWireGlowColor(double v) {
+            if (v >= 2.0) return new Color(0, 230, 118, 60);
+            if (v > 0.6)  return new Color(255, 179, 0, 50);
+            return new Color(100, 125, 145, 30);
         }
 
         /**

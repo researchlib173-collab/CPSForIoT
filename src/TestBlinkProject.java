@@ -117,8 +117,8 @@ public class TestBlinkProject {
         CpsPersistence.LayoutData data = CpsPersistence.loadLayout(f);
         CpsDomain.Board mcu = data.boards.get("ESP32_BlinkNode");
 
-        int testPort = 9094;
-        mcu.enableRadioBridge(testPort);
+        int testPort = (mcu.radioBridge != null) ? mcu.radioBridge.getPort() : 9096;
+        if (mcu.radioBridge == null) mcu.enableRadioBridge(testPort);
 
         // Connect a test client socket to receive telemetry
         java.net.Socket client = new java.net.Socket("localhost", testPort);

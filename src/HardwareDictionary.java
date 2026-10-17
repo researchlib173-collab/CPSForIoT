@@ -5,6 +5,138 @@ import java.util.*;
 // ============================================================================
 public class HardwareDictionary {
 
+    // ========================================================================
+    // ─── WIRE CLASS & AMAZING CONNECTION SYNTAX ──────────────────────────────
+    // ========================================================================
+    /**
+     * Hardware Wire with intuitive, fluent syntax for establishing:
+     * 1. Wire-to-Wire connections (direct electrical junctions / taps / splices).
+     * 2. Wire-to-Component connections with strict UNIQUENESS ENFORCEMENT [one to many] or [one to one].
+     */
+    public static class Wire extends CpsDomain.Wire {
+
+        public Wire(String name, CpsDomain.Pin a, CpsDomain.Pin b) {
+            super(name, a, b);
+        }
+
+        public Wire(String name, CpsDomain.Pin a) {
+            super(name, a, null);
+        }
+
+        public Wire(String name) {
+            super(name, null, null);
+        }
+
+        public Wire(CpsDomain.Pin a, CpsDomain.Pin b) {
+            super(a, b);
+        }
+
+        // ─── FLUENT BUILDER & FACTORY SYNTAX ─────────────────────────────────
+
+        /**
+         * Fluent DSL entry point:
+         * Wire w = Wire.named("W_MAIN").from(pinA).to(pinB);
+         * Wire tap = Wire.named("W_TAP").from(pinC).toWire(w);
+         * Wire compTap = Wire.named("W_SENSOR_TAP").from(pinD).toComponent(pirSensor, wires);
+         */
+        public static WireBuilder named(String name) {
+            return new WireBuilder(name);
+        }
+
+        public static Wire between(CpsDomain.Pin a, CpsDomain.Pin b) {
+            return new Wire("W_" + System.currentTimeMillis(), a, b);
+        }
+
+        public static Wire between(String name, CpsDomain.Pin a, CpsDomain.Pin b) {
+            return new Wire(name, a, b);
+        }
+
+        public static Wire tapInto(CpsDomain.Wire trunkWire, String tapWireName, CpsDomain.Pin branchPin) {
+            Wire branch = new Wire(tapWireName, branchPin, null);
+            branch.connectToWire(trunkWire);
+            return branch;
+        }
+
+        public static Wire tapIntoComponent(Object component, String tapWireName, CpsDomain.Pin branchPin, Collection<CpsDomain.Wire> workspaceWires) {
+            Wire branch = new Wire(tapWireName, branchPin, null);
+            branch.connectToComponent(component, workspaceWires);
+            return branch;
+        }
+
+        public static class WireBuilder {
+            private final String name;
+            private CpsDomain.Pin pinA;
+
+            public WireBuilder(String name) {
+                this.name = name;
+            }
+
+            public WireBuilder from(CpsDomain.Pin pin) {
+                this.pinA = pin;
+                return this;
+            }
+
+            public Wire to(CpsDomain.Pin pinB) {
+                return new Wire(name, pinA, pinB);
+            }
+
+            public Wire toWire(CpsDomain.Wire targetWire) {
+                Wire w = new Wire(name, pinA, null);
+                w.connectToWire(targetWire);
+                return w;
+            }
+
+            public Wire toComponent(Object component, Collection<CpsDomain.Wire> workspaceWires) {
+                Wire w = new Wire(name, pinA, null);
+                w.connectToComponent(component, workspaceWires);
+                return w;
+            }
+
+            public Wire toComponent(CpsDomain.Board board) {
+                Wire w = new Wire(name, pinA, null);
+                w.connectToComponent(board);
+                return w;
+            }
+        }
+    }
+
+    // ─── TOP-LEVEL HARDWARE DICTIONARY SYNTAX SHORTCUTS ──────────────────────
+
+    /** Connects wire1 to wire2 directly (fluent wire-to-wire connection). */
+    public static CpsDomain.Wire connect(CpsDomain.Wire wire1, CpsDomain.Wire wire2) {
+        if (wire1 == null) throw new IllegalArgumentException("wire1 cannot be null");
+        return wire1.connectToWire(wire2);
+    }
+
+    /** Connects wire to the unique wire of the specified component. */
+    public static CpsDomain.Wire connect(CpsDomain.Wire wire, Object component, Collection<CpsDomain.Wire> workspaceWires) {
+        if (wire == null) throw new IllegalArgumentException("wire cannot be null");
+        return wire.connectToComponent(component, workspaceWires);
+    }
+
+    /** Connects wire to the unique wire of the specified board. */
+    public static CpsDomain.Wire connect(CpsDomain.Wire wire, CpsDomain.Board board) {
+        if (wire == null) throw new IllegalArgumentException("wire cannot be null");
+        return wire.connectToComponent(board);
+    }
+
+    /** Taps a branch wire into a trunk wire. */
+    public static CpsDomain.Wire tap(CpsDomain.Wire trunkWire, CpsDomain.Wire branchWire) {
+        return connect(branchWire, trunkWire);
+    }
+
+    /** Slices / merges two wires into an equipotential junction. */
+    public static CpsDomain.Wire splice(CpsDomain.Wire wireA, CpsDomain.Wire wireB) {
+        return connect(wireA, wireB);
+    }
+
+    /** Alias to CpsDomain.AmbiguousWireConnectionException for dictionary consumers. */
+    public static class AmbiguousWireConnectionException extends CpsDomain.AmbiguousWireConnectionException {
+        public AmbiguousWireConnectionException(String message) {
+            super(message);
+        }
+    }
+
     // ─── PASSIVE COMPONENTS ──────────────────────────────────────────────────
 
     public static class Resistor extends CpsDomain.ElectronicComponent {

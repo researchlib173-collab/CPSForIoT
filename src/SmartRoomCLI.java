@@ -380,8 +380,60 @@ public class SmartRoomCLI {
                     }
                 }
 
-                // ── connect B1 PIN to B2 PIN [wireName] ───────────────────────
+                // ── connect B1 PIN to B2 PIN [wireName] | connect wire W1 to W2 | connect wire W1 to component COMP ──
                 case "connect" -> {
+                    // Check for wire-level connection: connect wire <W1> to <W2> | connect wire <W1> to component <COMP>
+                    if (parts.length >= 4 && parts[1].equalsIgnoreCase("wire")) {
+                        String w1Name = parts[2];
+                        CpsDomain.Wire w1 = findWireByName(w1Name);
+                        if (w1 == null) {
+                            System.out.println("[ERR] Wire not found: " + w1Name);
+                            return;
+                        }
+
+                        int targetIdx = parts[3].equalsIgnoreCase("to") ? 4 : 3;
+                        if (targetIdx >= parts.length) {
+                            System.out.println("[SYNTAX] connect wire <W1> to wire <W2> | connect wire <W1> to component <COMP>");
+                            return;
+                        }
+
+                        String targetType = parts[targetIdx].toLowerCase();
+                        if (targetType.equals("wire") && targetIdx + 1 < parts.length) {
+                            String w2Name = parts[targetIdx + 1];
+                            CpsDomain.Wire w2 = findWireByName(w2Name);
+                            if (w2 == null) { System.out.println("[ERR] Target wire not found: " + w2Name); return; }
+                            w1.connectToWire(w2);
+                            System.out.printf("[WIRED JUNCTION] Wire '%s' ←→ Wire '%s' [Net size: %d wires, %d pins]%n",
+                                w1.wireName, w2.wireName, w1.getAllWiresInNet().size(), w1.getAllPinsInNet().size());
+                        } else if (targetType.equals("component") && targetIdx + 1 < parts.length) {
+                            String compName = parts[targetIdx + 1];
+                            try {
+                                w1.connectToComponent(compName, wires, boards());
+                                System.out.printf("[WIRED JUNCTION] Wire '%s' successfully connected to unique wire of component '%s' [Net size: %d wires, %d pins]%n",
+                                    w1.wireName, compName, w1.getAllWiresInNet().size(), w1.getAllPinsInNet().size());
+                            } catch (CpsDomain.AmbiguousWireConnectionException ex) {
+                                System.out.println("[ERR] " + ex.getMessage());
+                            }
+                        } else {
+                            CpsDomain.Wire w2 = findWireByName(parts[targetIdx]);
+                            if (w2 != null) {
+                                w1.connectToWire(w2);
+                                System.out.printf("[WIRED JUNCTION] Wire '%s' ←→ Wire '%s' [Net size: %d wires, %d pins]%n",
+                                    w1.wireName, w2.wireName, w1.getAllWiresInNet().size(), w1.getAllPinsInNet().size());
+                            } else {
+                                String compName = parts[targetIdx];
+                                try {
+                                    w1.connectToComponent(compName, wires, boards());
+                                    System.out.printf("[WIRED JUNCTION] Wire '%s' connected to unique wire of component '%s' [Net size: %d wires, %d pins]%n",
+                                        w1.wireName, compName, w1.getAllWiresInNet().size(), w1.getAllPinsInNet().size());
+                                } catch (CpsDomain.AmbiguousWireConnectionException ex) {
+                                    System.out.println("[ERR] " + ex.getMessage());
+                                }
+                            }
+                        }
+                        return;
+                    }
+
                     CpsDomain.Board b1 = boards().get(parts[1]);
                     CpsDomain.Board b2 = boards().get(parts[4]);
                     if (b1 == null) { System.out.println("[ERR] Board not found: " + parts[1]); return; }
@@ -395,10 +447,74 @@ public class SmartRoomCLI {
                         ? parts[6].replaceAll("\\*", "")
                         : "W_" + System.currentTimeMillis();
                     CpsDomain.Wire w = new CpsDomain.Wire(wName, p1, p2);
-                    p1.attachWire(w); p2.attachWire(w);
                     wires.add(w);
                     System.out.printf("[WIRED]     %s.%s ←→ %s.%s  [%s]%n",
                         parts[1], parts[2], parts[4], parts[5], wName);
+                }
+
+                // ── wire connect <W1> to <W2> | wire connect <W1> to component <COMP> ──
+                case "wire" -> {
+                    if (parts.length < 2) {
+                        System.out.println("[SYNTAX] wire connect <W1> to <W2> | wire connect <W1> to component <COMP> | wire list");
+                        return;
+                    }
+                    if (parts[1].equalsIgnoreCase("list")) {
+                        System.out.println("  Active Wires & Junction Nets:");
+                        for (CpsDomain.Wire w : wires) {
+                            String pA = (w.pinA != null) ? w.pinA.pinId : "(tap)";
+                            String pB = (w.pinB != null) ? w.pinB.pinId : "(tap)";
+                            String junc = w.isJunction() ? " [Junctions: " + w.getConnectedWireNames() + "]" : "";
+                            System.out.printf("    %-20s  %s ←→ %s%s%n", w.wireName, pA, pB, junc);
+                        }
+                        return;
+                    }
+                    if (parts[1].equalsIgnoreCase("connect") || parts[1].equalsIgnoreCase("tap")) {
+                        if (parts.length < 4) {
+                            System.out.println("[SYNTAX] wire connect <W1> to <W2> | wire connect <W1> to component <COMP>");
+                            return;
+                        }
+                        String w1Name = parts[2];
+                        CpsDomain.Wire w1 = findWireByName(w1Name);
+                        if (w1 == null) { System.out.println("[ERR] Wire not found: " + w1Name); return; }
+
+                        int targetIdx = parts[3].equalsIgnoreCase("to") || parts[3].equalsIgnoreCase("into") ? 4 : 3;
+                        if (targetIdx >= parts.length) {
+                            System.out.println("[SYNTAX] Missing target wire or component.");
+                            return;
+                        }
+
+                        if (parts[targetIdx].equalsIgnoreCase("component") && targetIdx + 1 < parts.length) {
+                            String compName = parts[targetIdx + 1];
+                            try {
+                                w1.connectToComponent(compName, wires, boards());
+                                System.out.printf("[WIRED JUNCTION] Wire '%s' connected to unique wire of component '%s'%n",
+                                    w1.wireName, compName);
+                            } catch (CpsDomain.AmbiguousWireConnectionException ex) {
+                                System.out.println("[ERR] " + ex.getMessage());
+                            }
+                        } else if (parts[targetIdx].equalsIgnoreCase("wire") && targetIdx + 1 < parts.length) {
+                            String w2Name = parts[targetIdx + 1];
+                            CpsDomain.Wire w2 = findWireByName(w2Name);
+                            if (w2 == null) { System.out.println("[ERR] Wire not found: " + w2Name); return; }
+                            w1.connectToWire(w2);
+                            System.out.printf("[WIRED JUNCTION] Wire '%s' ←→ Wire '%s'%n", w1.wireName, w2.wireName);
+                        } else {
+                            CpsDomain.Wire w2 = findWireByName(parts[targetIdx]);
+                            if (w2 != null) {
+                                w1.connectToWire(w2);
+                                System.out.printf("[WIRED JUNCTION] Wire '%s' ←→ Wire '%s'%n", w1.wireName, w2.wireName);
+                            } else {
+                                String compName = parts[targetIdx];
+                                try {
+                                    w1.connectToComponent(compName, wires, boards());
+                                    System.out.printf("[WIRED JUNCTION] Wire '%s' connected to unique wire of component '%s'%n",
+                                        w1.wireName, compName);
+                                } catch (CpsDomain.AmbiguousWireConnectionException ex) {
+                                    System.out.println("[ERR] " + ex.getMessage());
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // ── set Node1 GPIO_04 2.5 ─────────────────────────────────────
@@ -538,7 +654,9 @@ public class SmartRoomCLI {
     private static void tick() {
         if (!isRunning) return;
         for (CpsDomain.Wire w : wires) {
-            if (w.pinA != null && w.pinB != null) {
+            if (w.isJunction()) {
+                w.syncNet();
+            } else if (w.pinA != null && w.pinB != null) {
                 boolean aIsInput = (w.pinA.mode == CpsDomain.PinMode.DIGITAL_IN || w.pinA.mode == CpsDomain.PinMode.ANALOG_IN);
                 boolean bIsInput = (w.pinB.mode == CpsDomain.PinMode.DIGITAL_IN || w.pinB.mode == CpsDomain.PinMode.ANALOG_IN);
                 
@@ -556,6 +674,14 @@ public class SmartRoomCLI {
         }
         for (CpsDomain.Board b : boards().values()) b.tickLogic();
         if (terminalBridge != null) terminalBridge.broadcastNetlistTick();
+    }
+
+    private static CpsDomain.Wire findWireByName(String name) {
+        if (name == null) return null;
+        for (CpsDomain.Wire w : wires) {
+            if (name.equalsIgnoreCase(w.wireName)) return w;
+        }
+        return null;
     }
 
     private static File resolveLayoutFile(String filename) {
