@@ -27,6 +27,8 @@ import javax.imageio.ImageIO;
  */
 public class PinFixCalibrator extends JFrame {
 
+    public static final String FONT_FAMILY = "Space Mono";
+
     private final CpsDomain.Board board;
     private File currentImageFile;
     private BufferedImage componentImage;
@@ -111,10 +113,10 @@ public class PinFixCalibrator extends JFrame {
         JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
         titlePanel.setOpaque(false);
         JLabel title = new JLabel("PIN CALIBRATION BENCH");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
         title.setForeground(new Color(0, 229, 255)); // Cyan glow
         JLabel subtitle = new JLabel("• Board: " + board.getId() + " (" + board.model + ")");
-        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        subtitle.setFont(new Font(FONT_FAMILY, Font.PLAIN, 13));
         subtitle.setForeground(new Color(180, 190, 205));
         titlePanel.add(title);
         titlePanel.add(subtitle);
@@ -157,7 +159,7 @@ public class PinFixCalibrator extends JFrame {
 
         // 1. Pre-fixed Pin Names Header
         JLabel pinListTitle = new JLabel("1. SELECT PRE-FIXED PIN");
-        pinListTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        pinListTitle.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         pinListTitle.setForeground(new Color(140, 160, 190));
         pinListTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         leftPanel.add(pinListTitle);
@@ -170,7 +172,7 @@ public class PinFixCalibrator extends JFrame {
         pinList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         pinList.setBackground(new Color(20, 24, 32));
         pinList.setForeground(new Color(220, 225, 235));
-        pinList.setFont(new Font("Consolas", Font.PLAIN, 13));
+        pinList.setFont(new Font(FONT_FAMILY, Font.PLAIN, 13));
         pinList.setSelectionBackground(new Color(0, 120, 215));
         pinList.setSelectionForeground(Color.WHITE);
         pinList.setFixedCellHeight(26);
@@ -196,7 +198,7 @@ public class PinFixCalibrator extends JFrame {
 
         // 3. The Active Pin Box
         JLabel activeBoxTitle = new JLabel("2. ACTIVE PIN TARGET");
-        activeBoxTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        activeBoxTitle.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         activeBoxTitle.setForeground(new Color(140, 160, 190));
         activeBoxTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         leftPanel.add(activeBoxTitle);
@@ -213,17 +215,17 @@ public class PinFixCalibrator extends JFrame {
         activePinCard.setMaximumSize(new Dimension(Short.MAX_VALUE, 120));
 
         activePinNameLabel = new JLabel("NO PIN SELECTED");
-        activePinNameLabel.setFont(new Font("Consolas", Font.BOLD, 18));
+        activePinNameLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
         activePinNameLabel.setForeground(new Color(0, 229, 255));
         activePinNameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         activePinModeLabel = new JLabel("Mode: —");
-        activePinModeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        activePinModeLabel.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         activePinModeLabel.setForeground(new Color(160, 175, 195));
         activePinModeLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         activePinCoordLabel = new JLabel("Coords: [Click on image to place]");
-        activePinCoordLabel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        activePinCoordLabel.setFont(new Font(FONT_FAMILY, Font.ITALIC, 11));
         activePinCoordLabel.setForeground(new Color(255, 204, 0));
         activePinCoordLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -237,7 +239,7 @@ public class PinFixCalibrator extends JFrame {
         leftPanel.add(Box.createVerticalStrut(12));
 
         // 4. Instructions & Helpers
-        JLabel tipLabel = new JLabel("<html><body style='width:240px; color:#9EABB8; font-size:11px;'>"
+        JLabel tipLabel = new JLabel("<html><body style='width:240px; color:#9EABB8; font-family: \"Space Mono\", monospace; font-size:11px;'>"
             + "<b>Instructions:</b><br>"
             + "• Click a pin from the scroll list above.<br>"
             + "• Click on the image to drop the pin dot.<br>"
@@ -267,7 +269,7 @@ public class PinFixCalibrator extends JFrame {
 
         // 6. Save & Apply Button
         JButton saveBtn = createStyledButton("SAVE & APPLY", new Color(0, 180, 136), Color.WHITE);
-        saveBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        saveBtn.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         saveBtn.setMaximumSize(new Dimension(Short.MAX_VALUE, 38));
         saveBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
         saveBtn.addActionListener(e -> saveAndApply());
@@ -288,11 +290,11 @@ public class PinFixCalibrator extends JFrame {
         bottomBar.setBorder(new EmptyBorder(6, 4, 0, 4));
 
         statusFeedbackLabel = new JLabel("Ready. Select a pin from the list to begin calibration.");
-        statusFeedbackLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statusFeedbackLabel.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         statusFeedbackLabel.setForeground(new Color(160, 180, 205));
 
         progressLabel = new JLabel("Calibrated: 0 / " + board.pins.size());
-        progressLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        progressLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         progressLabel.setForeground(new Color(0, 229, 255));
 
         bottomBar.add(statusFeedbackLabel, BorderLayout.WEST);
@@ -444,7 +446,7 @@ public class PinFixCalibrator extends JFrame {
 
     private JButton createStyledButton(String text, Color bg, Color fg) {
         JButton btn = new JButton(text);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         btn.setBackground(bg);
         btn.setForeground(fg);
         btn.setFocusPainted(false);
@@ -675,7 +677,7 @@ public class PinFixCalibrator extends JFrame {
 
             // Pin label badge
             String label = pinId;
-            Font f = new Font("Consolas", Font.BOLD, 11);
+            Font f = new Font(FONT_FAMILY, Font.BOLD, 11);
             g2.setFont(f);
             FontMetrics fm = g2.getFontMetrics(f);
             int textW = fm.stringWidth(label);
@@ -702,7 +704,7 @@ public class PinFixCalibrator extends JFrame {
             g2.drawLine(mx, my - 15, mx, my + 15);
 
             String text = "Click to place: " + pinId;
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
             g2.setColor(new Color(255, 204, 0));
             g2.drawString(text, mx + 12, my - 6);
         }
@@ -719,12 +721,12 @@ public class PinFixCalibrator extends JFrame {
             g2.drawRoundRect(x, y, w, h, 12, 12);
 
             g2.setColor(new Color(160, 180, 200));
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
             String msg1 = "NO IMAGE LINKED FOR: " + board.getId();
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(msg1, x + (w - fm.stringWidth(msg1)) / 2, y + h / 2 - 10);
 
-            g2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 13));
             String msg2 = "Click 'Change Image...' at the top-right to browse for an image file.";
             fm = g2.getFontMetrics();
             g2.drawString(msg2, x + (w - fm.stringWidth(msg2)) / 2, y + h / 2 + 18);

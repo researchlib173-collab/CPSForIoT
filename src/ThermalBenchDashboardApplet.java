@@ -21,7 +21,8 @@ import java.util.Locale;
 // ============================================================================
 public class ThermalBenchDashboardApplet extends JFrame {
 
-    // ─── Theme Colors ────────────────────────────────────────────────────────
+    // ─── Theme Font & Colors ─────────────────────────────────────────────────
+    public static final String FONT_FAMILY   = "Space Mono";
     private static final Color BG_DARK       = new Color(15, 18, 26);
     private static final Color CARD_BG       = new Color(22, 28, 42);
     private static final Color ACCENT_GREEN  = new Color(50, 220, 120);
@@ -103,10 +104,10 @@ public class ThermalBenchDashboardApplet extends JFrame {
         ));
 
         JLabel titleLbl = new JLabel("⚡ THERMAL-AWARE POWER BENCHMARK DASHBOARD");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_CYAN);
 
-        headerDeviceLbl.setFont(new Font("Monospaced", Font.BOLD, 12));
+        headerDeviceLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         headerDeviceLbl.setForeground(TEXT_MAIN);
 
         JPanel leftBox = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
@@ -114,7 +115,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
         leftBox.add(titleLbl);
         leftBox.add(headerDeviceLbl);
 
-        headerStatusLbl.setFont(new Font("Monospaced", Font.BOLD, 12));
+        headerStatusLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         headerStatusLbl.setForeground(ACCENT_RED);
 
         topBar.add(leftBox, BorderLayout.CENTER);
@@ -141,12 +142,12 @@ public class ThermalBenchDashboardApplet extends JFrame {
         bottomPanel.setPreferredSize(new Dimension(100, 160));
 
         JLabel logHeader = new JLabel("Virtual Wi-Fi Telemetry Stream (Port " + port + "):");
-        logHeader.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         logHeader.setForeground(TEXT_MUTED);
 
         packetList.setBackground(new Color(10, 14, 22));
         packetList.setForeground(new Color(140, 225, 255));
-        packetList.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        packetList.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         JScrollPane scroll = new JScrollPane(packetList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
@@ -178,7 +179,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
             g2.fillRoundRect(0, 0, w, h, 12, 12);
 
             // Title
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             g2.setColor(TEXT_MUTED);
             g2.drawString("CONVERTER EFFICIENCY (η)", 14, 24);
 
@@ -202,13 +203,13 @@ public class ThermalBenchDashboardApplet extends JFrame {
             g2.drawArc(cx - r, cy - r, size, size, 150, sweep);
 
             // Center Text: Value
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 32));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 32));
             g2.setColor(TEXT_MAIN);
             String effStr = String.format(Locale.US, "%.1f%%", efficiency);
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(effStr, cx - fm.stringWidth(effStr) / 2, cy + 10);
 
-            g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
             g2.setColor(TEXT_MUTED);
             String sub = (efficiency > 0.1) ? "Pout / Pin" : "IDLE";
             g2.drawString(sub, cx - g2.getFontMetrics().stringWidth(sub) / 2, cy + 30);
@@ -234,10 +235,10 @@ public class ThermalBenchDashboardApplet extends JFrame {
             g2.setColor(new Color(16, 20, 32));
             g2.fillRoundRect(x, y, bw, bh, 8, 8);
             g2.setColor(TEXT_MUTED);
-            g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
             g2.drawString(label, x + 8, y + 16);
             g2.setColor(c);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             g2.drawString(val, x + 8, y + 36);
         }
     }
@@ -264,7 +265,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
             g2.setColor(CARD_BG);
             g2.fillRoundRect(0, 0, w, h, 12, 12);
 
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             g2.setColor(TEXT_MUTED);
             g2.drawString("ELECTRICAL POWER BALANCE", 14, 24);
 
@@ -305,15 +306,15 @@ public class ThermalBenchDashboardApplet extends JFrame {
             g2.fillRoundRect(x + 8, y + 10, 4, bh - 20, 2, 2);
 
             g2.setColor(TEXT_MUTED);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
             g2.drawString(header, x + 20, y + 20);
 
             g2.setColor(color);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 20));
             g2.drawString(mainVal, x + 20, y + 44);
 
             g2.setColor(TEXT_MAIN);
-            g2.setFont(new Font("Monospaced", Font.PLAIN, 11));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
             g2.drawString(sub, x + 20, y + 64);
         }
     }
@@ -340,7 +341,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
             g2.setColor(CARD_BG);
             g2.fillRoundRect(0, 0, w, h, 12, 12);
 
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             g2.setColor(TEXT_MUTED);
             g2.drawString("4-ZONE THERMOCOUPLE ARRAY", 14, 24);
 
@@ -362,7 +363,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
             Color tempColor = temp >= 90.0 ? ACCENT_RED : (temp >= 70.0 ? ACCENT_AMBER : ACCENT_GREEN);
 
             g2.setColor(TEXT_MAIN);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             g2.drawString(label, x + 10, y + 18);
 
             String tStr = String.format(Locale.US, "%.1f °C", temp);

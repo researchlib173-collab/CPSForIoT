@@ -17,6 +17,7 @@ public class SmartRoomDashboard extends JFrame {
 
     // ─── Colours ──────────────────────────────────────────────────────────────
     static final Color BG        = new Color(18, 18, 28);
+    static final String FONT_FAMILY = "Space Mono";
     static final Color PANEL_BG  = new Color(26, 26, 40);
     static final Color ACCENT    = new Color(80, 140, 255);
     static final Color GREEN     = new Color(50, 220, 100);
@@ -98,10 +99,10 @@ public class SmartRoomDashboard extends JFrame {
         bar.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
 
         deviceLabel.setForeground(ACCENT);
-        deviceLabel.setFont(new Font("Monospaced", Font.BOLD, 13));
+        deviceLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
 
         statusLabel.setForeground(RED_C);
-        statusLabel.setFont(new Font("Monospaced", Font.BOLD, 12));
+        statusLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
 
         JButton connectBtn = dashBtn("Connect", GREEN);
         connectBtn.addActionListener(e -> attemptConnect());
@@ -166,7 +167,7 @@ public class SmartRoomDashboard extends JFrame {
 
         // Manual JSON field
         JTextField manualField = new JTextField("{\"cmd\":\"PING\"}");
-        manualField.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        manualField.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         manualField.setBackground(new Color(30, 30, 50));
         manualField.setForeground(TEXT);
         manualField.setCaretColor(Color.WHITE);
@@ -346,7 +347,7 @@ public class SmartRoomDashboard extends JFrame {
 
             // Icon / letter
             g2.setColor(BG);
-            g2.setFont(new Font("Monospaced", Font.BOLD, r / 2));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, r / 2));
             String icon = switch (roomState) {
                 case "OCCUPIED"   -> "●";
                 case "HYSTERESIS" -> "◑";
@@ -356,7 +357,7 @@ public class SmartRoomDashboard extends JFrame {
             g2.drawString(icon, cx - fm.stringWidth(icon) / 2, cy + fm.getAscent() / 3);
 
             // State label
-            g2.setFont(new Font("SansSerif", Font.BOLD, 16));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
             g2.setColor(stateColor);
             fm = g2.getFontMetrics();
             g2.drawString(roomState, cx - fm.stringWidth(roomState) / 2, cy + r + 22);
@@ -385,10 +386,10 @@ public class SmartRoomDashboard extends JFrame {
             g.setColor(c);
             g.fillOval(20, y - led / 2, led, led);
             g.setColor(TEXT);
-            g.setFont(new Font("SansSerif", Font.PLAIN, 13));
+            g.setFont(new Font(FONT_FAMILY, Font.PLAIN, 13));
             g.drawString(label, 46, y + 5);
             g.setColor(active ? c : DIM);
-            g.setFont(new Font("Monospaced", Font.BOLD, 13));
+            g.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             FontMetrics fm = g.getFontMetrics();
             g.drawString(val, w - fm.stringWidth(val) - 16, y + 5);
         }
@@ -399,7 +400,7 @@ public class SmartRoomDashboard extends JFrame {
             g.setColor(c);
             g.fillOval(20, y - led / 2, led, led);
             g.setColor(TEXT);
-            g.setFont(new Font("SansSerif", Font.PLAIN, 13));
+            g.setFont(new Font(FONT_FAMILY, Font.PLAIN, 13));
             g.drawString(label, 46, y + 5);
 
             // Confidence bar
@@ -410,7 +411,7 @@ public class SmartRoomDashboard extends JFrame {
             g.setColor(c);
             g.fillRoundRect(barX, y - 8, (int)(barW * conf / 100.0), 14, 6, 6);
             g.setColor(TEXT);
-            g.setFont(new Font("Monospaced", Font.BOLD, 11));
+            g.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
             String pctStr = String.format("%.0f%%", conf);
             g.drawString(pctStr, w - 40, y + 5);
         }
@@ -444,13 +445,13 @@ public class SmartRoomDashboard extends JFrame {
             g.fillOval(cx - r, cy - r, 2 * r, 2 * r);
 
             g.setColor(BG);
-            g.setFont(new Font("SansSerif", Font.BOLD, on ? 11 : 10));
+            g.setFont(new Font(FONT_FAMILY, Font.BOLD, on ? 11 : 10));
             String status = on ? "ON" : "OFF";
             FontMetrics fm = g.getFontMetrics();
             g.drawString(status, cx - fm.stringWidth(status) / 2, cy + fm.getAscent() / 3);
 
             g.setColor(on ? c : DIM);
-            g.setFont(new Font("SansSerif", Font.BOLD, 13));
+            g.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             fm = g.getFontMetrics();
             g.drawString(label, cx - fm.stringWidth(label) / 2, cy + r + 18);
         }
@@ -487,7 +488,7 @@ public class SmartRoomDashboard extends JFrame {
             }
 
             g2.setStroke(new BasicStroke(1));
-            g2.setFont(new Font("Monospaced", Font.BOLD, 14));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
             FontMetrics fm = g2.getFontMetrics();
 
             if (inHyst) {
@@ -495,7 +496,7 @@ public class SmartRoomDashboard extends JFrame {
                 String timeStr = String.format("%02d:%02d", mins, secs);
                 g2.setColor(AMBER);
                 g2.drawString(timeStr, cx - fm.stringWidth(timeStr) / 2, cy + 6);
-                g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
+                g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
                 fm = g2.getFontMetrics();
                 String sub = "remaining";
                 g2.drawString(sub, cx - fm.stringWidth(sub) / 2, cy + 22);
@@ -516,7 +517,7 @@ public class SmartRoomDashboard extends JFrame {
             setLayout(new BorderLayout());
             setBorder(titledBorder("📋  EVENT LOG"));
             setBackground(PANEL_BG);
-            list.setFont(new Font("Monospaced", Font.PLAIN, 11));
+            list.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
             list.setBackground(new Color(14, 14, 22));
             list.setForeground(new Color(100, 220, 100));
             add(new JScrollPane(list), BorderLayout.CENTER);
@@ -536,7 +537,7 @@ public class SmartRoomDashboard extends JFrame {
         JButton b = new JButton(text);
         b.setBackground(c); b.setForeground(Color.WHITE);
         b.setFocusPainted(false);
-        b.setFont(new Font("SansSerif", Font.BOLD, 12));
+        b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         b.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
         return b;
     }
@@ -545,7 +546,7 @@ public class SmartRoomDashboard extends JFrame {
         JToggleButton tb = new JToggleButton(tag + ": " + offTxt);
         tb.setBackground(DIM); tb.setForeground(TEXT);
         tb.setFocusPainted(false);
-        tb.setFont(new Font("Monospaced", Font.BOLD, 12));
+        tb.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         tb.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
         tb.addChangeListener(e -> {
             boolean sel = tb.isSelected();
@@ -559,7 +560,7 @@ public class SmartRoomDashboard extends JFrame {
         return BorderFactory.createTitledBorder(
             BorderFactory.createLineBorder(new Color(50, 70, 110)),
             title, TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("SansSerif", Font.BOLD, 12), new Color(150, 180, 255));
+            new Font(FONT_FAMILY, Font.BOLD, 12), new Color(150, 180, 255));
     }
 
     // Naive JSON extractors (no extra deps)

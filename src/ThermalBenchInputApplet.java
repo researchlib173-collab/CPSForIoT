@@ -21,7 +21,8 @@ import java.util.Locale;
 // ============================================================================
 public class ThermalBenchInputApplet extends JFrame {
 
-    // ─── Theme Colors ────────────────────────────────────────────────────────
+    // ─── Theme Font & Colors ─────────────────────────────────────────────────
+    public static final String FONT_FAMILY  = "Space Mono";
     private static final Color BG_DARK      = new Color(16, 20, 28);
     private static final Color CARD_BG      = new Color(24, 30, 44);
     private static final Color ACCENT_ORANGE= new Color(255, 130, 45);
@@ -96,14 +97,14 @@ public class ThermalBenchInputApplet extends JFrame {
         ));
 
         JLabel titleLbl = new JLabel("⚡ POWER & THERMAL BENCH STIMULATOR");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_ORANGE);
 
         JLabel subLbl = new JLabel("Physical Load & Environmental Chamber Controls  •  Port " + port);
-        subLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         subLbl.setForeground(TEXT_MUTED);
 
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         statusLabel.setForeground(ACCENT_RED);
 
         JPanel headerLeft = new JPanel(new GridLayout(2, 1, 0, 2));
@@ -140,12 +141,12 @@ public class ThermalBenchInputApplet extends JFrame {
         bottomPanel.setPreferredSize(new Dimension(100, 160));
 
         JLabel logHeader = new JLabel("Terminal Bus Outgoing Command Log (Port " + port + "):");
-        logHeader.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         logHeader.setForeground(TEXT_MUTED);
 
         logList.setBackground(new Color(12, 16, 24));
         logList.setForeground(new Color(130, 220, 160));
-        logList.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        logList.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         JScrollPane scroll = new JScrollPane(logList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
@@ -161,7 +162,7 @@ public class ThermalBenchInputApplet extends JFrame {
         loadSlider.setOpaque(false);
         loadSlider.setValue(0);
 
-        loadValueLbl.setFont(new Font("Monospaced", Font.BOLD, 13));
+        loadValueLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         loadValueLbl.setForeground(ACCENT_CYAN);
 
         loadSlider.addChangeListener(e -> {
@@ -200,7 +201,7 @@ public class ThermalBenchInputApplet extends JFrame {
         chamberSlider.setOpaque(false);
         chamberSlider.setValue(25);
 
-        chamberValueLbl.setFont(new Font("Monospaced", Font.BOLD, 13));
+        chamberValueLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         chamberValueLbl.setForeground(ACCENT_ORANGE);
 
         chamberSlider.addChangeListener(e -> {
@@ -238,7 +239,7 @@ public class ThermalBenchInputApplet extends JFrame {
         vinSlider.setOpaque(false);
         vinSlider.setValue(240);
 
-        vinValueLbl.setFont(new Font("Monospaced", Font.BOLD, 13));
+        vinValueLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         vinValueLbl.setForeground(ACCENT_GREEN);
 
         vinSlider.addChangeListener(e -> {
@@ -444,7 +445,7 @@ public class ThermalBenchInputApplet extends JFrame {
         ));
 
         JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         titleLbl.setForeground(new Color(185, 200, 230));
 
         card.add(titleLbl, BorderLayout.NORTH);
@@ -453,7 +454,7 @@ public class ThermalBenchInputApplet extends JFrame {
 
     private JButton createPresetBtn(String label, Runnable action) {
         JButton btn = new JButton(label);
-        btn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        btn.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         btn.setBackground(new Color(34, 42, 60));
         btn.setForeground(TEXT_MAIN);
         btn.setFocusPainted(false);
@@ -463,7 +464,7 @@ public class ThermalBenchInputApplet extends JFrame {
 
     private JButton createStyledButton(String text, Color bg) {
         JButton btn = new JButton(text);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         btn.setBackground(bg);
         btn.setForeground(Color.BLACK);
         btn.setFocusPainted(false);

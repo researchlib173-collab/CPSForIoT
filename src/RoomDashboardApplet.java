@@ -20,7 +20,8 @@ import java.util.Date;
 // ============================================================================
 public class RoomDashboardApplet extends JFrame {
 
-    // ─── Theme Colors ────────────────────────────────────────────────────────
+    // ─── Theme Font & Colors ─────────────────────────────────────────────────
+    public static final String FONT_FAMILY  = "Space Mono";
     private static final Color BG_DARK      = new Color(16, 18, 26);
     private static final Color CARD_BG      = new Color(24, 27, 38);
     private static final Color ACCENT_BLUE  = new Color(75, 145, 255);
@@ -100,13 +101,13 @@ public class RoomDashboardApplet extends JFrame {
         ));
 
         JLabel titleLbl = new JLabel("🏠 SMART ROOM TELEMETRY DASHBOARD");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_BLUE);
 
-        headerDeviceLbl.setFont(new Font("Monospaced", Font.BOLD, 12));
+        headerDeviceLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         headerDeviceLbl.setForeground(TEXT_MAIN);
 
-        headerFwLbl.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        headerFwLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         headerFwLbl.setForeground(TEXT_MUTED);
 
         JPanel infoBox = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
@@ -115,11 +116,11 @@ public class RoomDashboardApplet extends JFrame {
         infoBox.add(headerDeviceLbl);
         infoBox.add(headerFwLbl);
 
-        headerStatusLbl.setFont(new Font("Monospaced", Font.BOLD, 12));
+        headerStatusLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         headerStatusLbl.setForeground(new Color(240, 75, 75));
 
         JButton connectBtn = new JButton("Reconnect");
-        connectBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        connectBtn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         connectBtn.setBackground(new Color(45, 52, 72));
         connectBtn.setForeground(TEXT_MAIN);
         connectBtn.setFocusPainted(false);
@@ -157,12 +158,12 @@ public class RoomDashboardApplet extends JFrame {
         bottomBar.setPreferredSize(new Dimension(100, 130));
 
         JLabel streamHeader = new JLabel("Virtual Wi-Fi Radio Telemetry Stream (Port " + port + "):");
-        streamHeader.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        streamHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
         streamHeader.setForeground(TEXT_MUTED);
 
         packetList.setBackground(new Color(12, 14, 20));
         packetList.setForeground(new Color(120, 215, 255));
-        packetList.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        packetList.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         JScrollPane scroll = new JScrollPane(packetList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
@@ -180,7 +181,7 @@ public class RoomDashboardApplet extends JFrame {
         ));
 
         JLabel lbl = new JLabel(title);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        lbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
         lbl.setForeground(new Color(175, 185, 210));
 
         card.add(lbl, BorderLayout.NORTH);
@@ -228,7 +229,7 @@ public class RoomDashboardApplet extends JFrame {
 
             // State Text
             g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
             FontMetrics fm = g2.getFontMetrics();
             int tx = cx - fm.stringWidth(roomState) / 2;
             int ty = cy + fm.getAscent() / 2 - 2;
@@ -241,7 +242,7 @@ public class RoomDashboardApplet extends JFrame {
                 default           -> "Room Empty — Energy Saving Standby";
             };
             g2.setColor(TEXT_MUTED);
-            g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
             FontMetrics fm2 = g2.getFontMetrics();
             g2.drawString(desc, cx - fm2.stringWidth(desc) / 2, cy + radius + 22);
 
@@ -285,7 +286,7 @@ public class RoomDashboardApplet extends JFrame {
             }
 
             // Center Label
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 22));
             g2.setColor(TEXT_MAIN);
             String centerStr = roomState.equals("HYSTERESIS")
                 ? (hystRemainingSec + "s")
@@ -294,7 +295,7 @@ public class RoomDashboardApplet extends JFrame {
             g2.drawString(centerStr, cx - fm.stringWidth(centerStr) / 2, cy + fm.getAscent() / 2 - 2);
 
             // Subtitle
-            g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
             g2.setColor(TEXT_MUTED);
             String subStr = roomState.equals("HYSTERESIS") ? "Remaining Grace Time" : "No Grace Active";
             FontMetrics fm2 = g2.getFontMetrics();
@@ -339,19 +340,19 @@ public class RoomDashboardApplet extends JFrame {
             g2.fillOval(cx - r, cy - r, r * 2, r * 2);
 
             g2.setColor(active ? new Color(30, 30, 30) : new Color(110, 120, 145));
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
             String iconText = active ? "ON" : "OFF";
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(iconText, cx - fm.stringWidth(iconText) / 2, cy + fm.getAscent() / 2 - 2);
 
             // Labels below
             g2.setColor(TEXT_MAIN);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             FontMetrics fmLabel = g2.getFontMetrics();
             g2.drawString(label, cx - fmLabel.stringWidth(label) / 2, cy + r + 20);
 
             g2.setColor(active ? activeColor : TEXT_MUTED);
-            g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
             FontMetrics fmStatus = g2.getFontMetrics();
             g2.drawString(status, cx - fmStatus.stringWidth(status) / 2, cy + r + 36);
         }
@@ -401,12 +402,12 @@ public class RoomDashboardApplet extends JFrame {
 
             // Name
             g2.setColor(TEXT_MAIN);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             g2.drawString(name, x + 28, y + (h / 2) + 4);
 
             // Value
             g2.setColor(statusColor);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(val, x + w - fm.stringWidth(val) - 12, y + (h / 2) + 4);
         }

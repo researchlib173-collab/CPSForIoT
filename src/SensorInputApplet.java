@@ -19,7 +19,8 @@ import java.util.Date;
 // ============================================================================
 public class SensorInputApplet extends JFrame {
 
-    // ─── Theme Colors ────────────────────────────────────────────────────────
+    // ─── Theme Font & Colors ─────────────────────────────────────────────────
+    public static final String FONT_FAMILY  = "Space Mono";
     private static final Color BG_DARK      = new Color(18, 20, 28);
     private static final Color CARD_BG      = new Color(26, 30, 42);
     private static final Color ACCENT_BLUE  = new Color(70, 140, 255);
@@ -91,11 +92,11 @@ public class SensorInputApplet extends JFrame {
         ));
 
         JLabel titleLbl = new JLabel("🔌 HARDWARE SENSOR STIMULATOR");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_BLUE);
 
         JLabel subLbl = new JLabel("Direct Netlist Terminal Access  •  Port " + port);
-        subLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         subLbl.setForeground(TEXT_MUTED);
 
         JPanel titleBox = new JPanel(new GridLayout(2, 1, 0, 2));
@@ -103,7 +104,7 @@ public class SensorInputApplet extends JFrame {
         titleBox.add(titleLbl);
         titleBox.add(subLbl);
 
-        statusLabel.setFont(new Font("Monospaced", Font.BOLD, 12));
+        statusLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         statusLabel.setForeground(ACCENT_RED);
 
         JButton reconnectBtn = createStyledButton("Connect", ACCENT_GREEN);
@@ -146,12 +147,12 @@ public class SensorInputApplet extends JFrame {
         bottomPanel.setPreferredSize(new Dimension(100, 150));
 
         JLabel logHeader = new JLabel("Terminal Bus Log (Port " + port + "):");
-        logHeader.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         logHeader.setForeground(TEXT_MUTED);
 
         logList.setBackground(new Color(14, 16, 22));
         logList.setForeground(new Color(130, 220, 150));
-        logList.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        logList.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         JScrollPane scroll = new JScrollPane(logList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
@@ -164,7 +165,7 @@ public class SensorInputApplet extends JFrame {
     private JPanel buildPirPanel() {
         JPanel card = createCard("👁  PIR Motion Detector (Terminal: PIR_MotionSensor.DATA)");
 
-        pirToggle.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        pirToggle.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         pirToggle.setFocusPainted(false);
         pirToggle.setBackground(new Color(45, 50, 70));
         pirToggle.setForeground(TEXT_MAIN);
@@ -202,7 +203,7 @@ public class SensorInputApplet extends JFrame {
     private JPanel buildDoorPanel() {
         JPanel card = createCard("🚪  Magnetic Reed Door Switch (Terminal: DoorContactSensor.STATE)");
 
-        doorToggle.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        doorToggle.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         doorToggle.setFocusPainted(false);
         doorToggle.setBackground(new Color(45, 50, 70));
         doorToggle.setForeground(TEXT_MAIN);
@@ -249,7 +250,7 @@ public class SensorInputApplet extends JFrame {
         radarBar.setForeground(ACCENT_BLUE);
         radarBar.setBackground(new Color(20, 22, 32));
 
-        radarValueLbl.setFont(new Font("Monospaced", Font.BOLD, 13));
+        radarValueLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         radarValueLbl.setForeground(ACCENT_BLUE);
 
         radarSlider.addChangeListener(e -> {
@@ -286,7 +287,7 @@ public class SensorInputApplet extends JFrame {
 
     private JButton createPresetBtn(String label, int val) {
         JButton btn = new JButton(label);
-        btn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        btn.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         btn.setBackground(new Color(36, 42, 58));
         btn.setForeground(TEXT_MAIN);
         btn.setFocusPainted(false);
@@ -391,7 +392,7 @@ public class SensorInputApplet extends JFrame {
         ));
 
         JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         titleLbl.setForeground(new Color(180, 195, 220));
 
         card.add(titleLbl, BorderLayout.NORTH);
@@ -400,7 +401,7 @@ public class SensorInputApplet extends JFrame {
 
     private JButton createStyledButton(String text, Color bg) {
         JButton btn = new JButton(text);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         btn.setBackground(bg);
         btn.setForeground(Color.BLACK);
         btn.setFocusPainted(false);

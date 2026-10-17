@@ -16,6 +16,8 @@ import java.util.concurrent.*;
 // ============================================================================
 public class SimulatorApp extends JFrame {
 
+    public static final String FONT_FAMILY = "Space Mono";
+
     // ─── Network ─────────────────────────────────────────────────────────────
     private Socket socket;
     private PrintWriter out;
@@ -348,7 +350,7 @@ public class SimulatorApp extends JFrame {
         b.setBackground(bg);
         b.setForeground(Color.WHITE);
         b.setFocusPainted(false);
-        b.setFont(new Font("SansSerif", Font.BOLD, 12));
+        b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         return b;
     }
 
@@ -356,7 +358,7 @@ public class SimulatorApp extends JFrame {
         return BorderFactory.createTitledBorder(
             BorderFactory.createLineBorder(new Color(60, 80, 120)),
             title, TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("SansSerif", Font.BOLD, 12), new Color(160, 200, 255));
+            new Font(FONT_FAMILY, Font.BOLD, 12), new Color(160, 200, 255));
     }
 
     // Naive JSON string extractor – avoids heavyweight JSON dependency
@@ -424,13 +426,13 @@ public class SimulatorApp extends JFrame {
             g2.fillOval(cx - 4, cy - 4, 8, 8);
 
             // Labels
-            g2.setFont(new Font("SansSerif", Font.BOLD, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             g2.setColor(color);
             String valStr = String.format("%.1f %s", value, unit);
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(valStr, cx - fm.stringWidth(valStr) / 2, cy - r / 2);
             g2.setColor(Color.LIGHT_GRAY);
-            g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
             g2.drawString(label, cx - fm.stringWidth(label) / 2, cy + 14);
         }
     }

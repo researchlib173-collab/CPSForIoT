@@ -11,6 +11,8 @@ import java.io.IOException;
  */
 public class AssetGenerator {
 
+    public static final String FONT_FAMILY = "Space Mono";
+
     public static void main(String[] args) throws IOException {
         File assetsDir = new File("assets");
         if (!assetsDir.exists()) assetsDir.mkdirs();
@@ -56,9 +58,9 @@ public class AssetGenerator {
 
         // Can Label
         g2.setColor(new Color(40, 45, 55));
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
         g2.drawString("ESP32-WROOM-32", 110, 170);
-        g2.setFont(new Font("Consolas", Font.PLAIN, 12));
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         g2.drawString("Wi-Fi + BT + BLE MCU", 125, 200);
         g2.drawString("FCC ID: 2AC7Z-ESPWROOM32", 105, 230);
 
@@ -73,7 +75,7 @@ public class AssetGenerator {
         g2.fillRoundRect(60, 480, 40, 30, 4, 4);
         g2.fillRoundRect(300, 480, 40, 30, 4, 4);
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Consolas", Font.BOLD, 10));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
         g2.drawString("EN", 72, 470);
         g2.drawString("BOOT", 305, 470);
 
@@ -130,7 +132,7 @@ public class AssetGenerator {
 
         // Module text
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         g2.drawString("PIR MOTION SENSOR", 115, 230);
 
         g2.dispose();
@@ -169,7 +171,7 @@ public class AssetGenerator {
 
         // Title
         g2.setColor(new Color(50, 60, 75));
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         g2.drawString("MAGNETIC REED DOOR SWITCH", 85, 68);
 
         g2.dispose();
@@ -203,7 +205,7 @@ public class AssetGenerator {
         g2.setColor(new Color(25, 30, 35));
         g2.fillRoundRect(135, 150, 90, 60, 6, 6);
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Consolas", Font.BOLD, 10));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
         g2.drawString("24GHz FMCW", 145, 185);
 
         // 4 Pin Header at Bottom
@@ -235,10 +237,10 @@ public class AssetGenerator {
         g2.fillRoundRect(160, 50, 130, 100, 6, 6);
         g2.fillRoundRect(160, 170, 130, 100, 6, 6);
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         g2.drawString("SONGLE RELAY 1", 175, 100);
         g2.drawString("SONGLE RELAY 2", 175, 220);
-        g2.setFont(new Font("Consolas", Font.PLAIN, 10));
+        g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
         g2.drawString("10A 250VAC", 195, 120);
         g2.drawString("10A 250VAC", 195, 240);
 
@@ -274,7 +276,7 @@ public class AssetGenerator {
         g2.setColor(new Color(15, 20, 25));
         g2.fillRoundRect(50, 50, 180, 90, 6, 6);
         g2.setColor(new Color(0, 230, 118)); // Green digital readout
-        g2.setFont(new Font("Consolas", Font.BOLD, 22));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 22));
         g2.drawString("12.00 V", 65, 85);
         g2.drawString(" 8.50 A", 65, 120);
 
@@ -321,7 +323,7 @@ public class AssetGenerator {
         g2.fillOval(x - 3, py - 3, 6, 6);
 
         // Small label text
-        g2.setFont(new Font("Consolas", Font.BOLD, 10));
+        g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
         g2.setColor(Color.WHITE);
         int tw = g2.getFontMetrics().stringWidth(label);
         g2.drawString(label, x - tw / 2, py - 10);

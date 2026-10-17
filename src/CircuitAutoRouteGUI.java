@@ -27,6 +27,8 @@ import javax.imageio.ImageIO;
  */
 public class CircuitAutoRouteGUI extends JFrame {
 
+    public static final String FONT_FAMILY = "Space Mono";
+
     private final String workspaceName;
     private final Map<String, CpsDomain.Board> boards;
     private final List<CpsDomain.Wire> wires;
@@ -196,11 +198,11 @@ public class CircuitAutoRouteGUI extends JFrame {
         JPanel leftHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         leftHeader.setOpaque(false);
         JLabel titleLbl = new JLabel("SCHEMATIC AUTO-ROUTER");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(new Color(0, 229, 255));
 
         JLabel infoLbl = new JLabel("• Workspace: " + workspaceName + " (" + boards.size() + " boards, " + wires.size() + " wires)");
-        infoLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        infoLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         infoLbl.setForeground(new Color(170, 185, 205));
 
         leftHeader.add(titleLbl);
@@ -255,14 +257,14 @@ public class CircuitAutoRouteGUI extends JFrame {
         bottomBar.setBackground(new Color(24, 28, 38));
         bottomBar.setBorder(new EmptyBorder(6, 12, 6, 12));
 
-        JLabel legendLbl = new JLabel("<html><span style='color:#00E676;'>● High/Active (>2V)</span> &nbsp;&nbsp; " +
+        JLabel legendLbl = new JLabel("<html><body style='font-family:\"Space Mono\",monospace;'><span style='color:#00E676;'>● High/Active (>2V)</span> &nbsp;&nbsp; " +
             "<span style='color:#FFB300;'>● Analog Signal</span> &nbsp;&nbsp; " +
             "<span style='color:#607D8B;'>● Ground/Low (0V)</span> &nbsp;&nbsp; " +
-            "<span style='color:#90A4AE;'>| Drag components with mouse to reposition | Wires auto-route continuously</span></html>");
-        legendLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            "<span style='color:#90A4AE;'>| Drag components with mouse to reposition | Wires auto-route continuously</span></body></html>");
+        legendLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
 
         JLabel statusLbl = new JLabel("Live Engine: 1 Hz Clock Active");
-        statusLbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        statusLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
         statusLbl.setForeground(new Color(0, 229, 255));
 
         bottomBar.add(legendLbl, BorderLayout.WEST);
@@ -325,7 +327,7 @@ public class CircuitAutoRouteGUI extends JFrame {
 
     private JButton createStyledButton(String text, Color bg, Color fg) {
         JButton btn = new JButton(text);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         btn.setBackground(bg);
         btn.setForeground(fg);
         btn.setFocusPainted(false);
@@ -532,10 +534,10 @@ public class CircuitAutoRouteGUI extends JFrame {
 
             // Header text
             g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             g2.drawString(b.getId(), bounds.x + 10, bounds.y + 19);
 
-            g2.setFont(new Font("Consolas", Font.PLAIN, 10));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
             g2.setColor(new Color(0, 229, 255));
             String modelStr = "[" + b.model + "]";
             int mw = g2.getFontMetrics().stringWidth(modelStr);
@@ -588,7 +590,7 @@ public class CircuitAutoRouteGUI extends JFrame {
 
             // Pin Number and Label
             if (showPinLabels) {
-                g2.setFont(new Font("Consolas", Font.BOLD, 10));
+                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
                 FontMetrics fm = g2.getFontMetrics();
 
                 String label = "#" + pinNum + " " + pinId;
@@ -615,7 +617,7 @@ public class CircuitAutoRouteGUI extends JFrame {
             g2.drawOval(px - 5, py - 5, 10, 10);
 
             if (showPinLabels) {
-                g2.setFont(new Font("Consolas", Font.BOLD, 10));
+                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
                 FontMetrics fm = g2.getFontMetrics();
                 int tw = fm.stringWidth(pinId);
 
@@ -638,11 +640,11 @@ public class CircuitAutoRouteGUI extends JFrame {
             g2.setStroke(new BasicStroke(1.0f));
             g2.drawRoundRect(x, y, w, 18, 6, 6);
 
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
             g2.setColor(new Color(0, 229, 255));
             g2.drawString(id, x + 6, y + 13);
 
-            g2.setFont(new Font("Consolas", Font.PLAIN, 10));
+            g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
             g2.setColor(new Color(160, 180, 200));
             String m = "[" + model + "]";
             int mw = g2.getFontMetrics().stringWidth(m);
@@ -790,7 +792,7 @@ public class CircuitAutoRouteGUI extends JFrame {
 
         private void drawWireBadge(Graphics2D g2, int x, int y, String name, double v, Color accent) {
             String txt = name + ": " + String.format("%.2fV", v);
-            g2.setFont(new Font("Consolas", Font.BOLD, 10));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
             FontMetrics fm = g2.getFontMetrics();
             int tw = fm.stringWidth(txt);
 
