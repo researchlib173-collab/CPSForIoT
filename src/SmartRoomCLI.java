@@ -50,29 +50,49 @@ public class SmartRoomCLI {
     }
 
     private static void printBanner() {
-        System.out.println("╔══════════════════════════════════════════════════════════════╗");
-        System.out.println("║     IoT CPS WORKBENCH — Two-Port Cyber-Physical Simulation   ║");
-        System.out.println("╠══════════════════════════════════════════════════════════════╣");
-        System.out.println("║  PORT 1 (Radio):    applet link <BOARD> tcp <PORT> (9090)    ║");
-        System.out.println("║  PORT 2 (Terminals):workspace terminal link tcp <PORT> (9091)║");
-        System.out.println("║                                                              ║");
-        System.out.println("║  workspace create|use|list [NAME] manage workspaces          ║");
-        System.out.println("║  layout save|load|list [FILE]     save/restore full circuit  ║");
-        System.out.println("║  board save|load|list [B] [FILE]  save/load board & firmware ║");
-        System.out.println("║  import <MODEL> as <NAME>         ESP32/NODEMCU/ARDUINO/     ║");
-        System.out.println("║                                   RELAY_HV_MODULE            ║");
-        System.out.println("║  create board <NAME>              blank custom board         ║");
-        System.out.println("║  add pin <BOARD> <PIN> <MODE>     DIGITAL_IN/OUT ANALOG_IN   ║");
-        System.out.println("║  connect <B1> <P1> to <B2> <P2>   connect with wire          ║");
-        System.out.println("║  disconnect <B1><P1> from <B2><P2>remove connection          ║");
-        System.out.println("║  set <BOARD> <PIN> <voltage>      force pin voltage          ║");
-        System.out.println("║  flash <BOARD> <FIRMWARE> [sec]   flash on-board firmware    ║");
-        System.out.println("║  pinfix <BOARD> [IMAGE]           calibrate pin dots on image║");
-        System.out.println("║  autoroute / aroute [NAME/FILE]   visual circuit schematic   ║");
-        System.out.println("║  sim start|stop|status            clock engine control       ║");
-        System.out.println("║  list boards|wires|workspaces     inspect <BOARD>            ║");
-        System.out.println("║  exit                                                        ║");
-        System.out.println("╚══════════════════════════════════════════════════════════════╝");
+        System.out.println("╔══════════════════════════════════════════════════════════════════════════════╗");
+        System.out.println("║                    IoT CPS WORKBENCH — CYBER-PHYSICAL SIMULATOR              ║");
+        System.out.println("╠══════════════════════════════════════════════════════════════════════════════╣");
+        System.out.println("║  [WIRING & WIRE-TO-WIRE JUNCTIONS]                                           ║");
+        System.out.println("║    connect <B1> <P1> to <B2> <P2>     standard pin-to-pin wire connection    ║");
+        System.out.println("║    connect wire <W1> to wire <W2>     WIRE-TO-WIRE junction tap (multi-hop)  ║");
+        System.out.println("║    connect wire <W> to [comp] <C>     WIRE-TO-COMPONENT (unique 1:1 or 1:N)  ║");
+        System.out.println("║    disconnect <B1><P1> from <B2><P2>  disconnect wire from board pins        ║");
+        System.out.println("║                                                                              ║");
+        System.out.println("║  [WORKSPACES & PERSISTENCE]                                                  ║");
+        System.out.println("║    workspace create|use|list [NAME]   manage active simulation workspace     ║");
+        System.out.println("║    layout save|load|list [FILE]       save/restore full circuit & netlist    ║");
+        System.out.println("║    board save|load|list [B] [FILE]    save/restore board & firmware state    ║");
+        System.out.println("║                                                                              ║");
+        System.out.println("║  [BOARDS & COMPONENTS]                                                       ║");
+        System.out.println("║    import <MODEL> as <NAME>           ESP32/INA219/TEMP_SENSOR/LED/ARDUINO...║");
+        System.out.println("║    create board <NAME>                create custom blank circuit board      ║");
+        System.out.println("║    add pin <BOARD> <PIN> <MODE>       DIGITAL_IN/OUT, ANALOG_IN/PWM_OUT      ║");
+        System.out.println("║    add component <B> <TYPE> <NAME>    attach electronic component to board   ║");
+        System.out.println("║                                                                              ║");
+        System.out.println("║  [SIMULATION & CONTROL]                                                      ║");
+        System.out.println("║    pin set <BOARD> <PIN> <voltage>    force analog/digital pin voltage       ║");
+        System.out.println("║    pin read <BOARD> <PIN>             read real-time pin voltage & state     ║");
+        System.out.println("║    flash <BOARD> <FIRMWARE>           flash on-board firmware onto MCU       ║");
+        System.out.println("║    sim start|stop|status              simulation clock engine (1 Hz)         ║");
+        System.out.println("║    list boards|wires|workspaces       inspect active netlist objects         ║");
+        System.out.println("║    inspect <BOARD>                    detailed pin & component status        ║");
+        System.out.println("║                                                                              ║");
+        System.out.println("║  [GRAPHICAL APPLETS & CAD]                                                   ║");
+        System.out.println("║    autoroute / aroute [NAME/FILE]     visual circuit schematic CAD viewer    ║");
+        System.out.println("║    applet dashboard                   Thermal Bench telemetry dashboard      ║");
+        System.out.println("║    applet input                       Regulated Power Supply & motor GUI     ║");
+        System.out.println("║    applet blink                       ESP32 LED blink visualizer             ║");
+        System.out.println("║    pinfix <BOARD> [IMAGE]             calibrate visual pin coordinates       ║");
+        System.out.println("║                                                                              ║");
+        System.out.println("║  [NETWORKING PORTS]                                                          ║");
+        System.out.println("║    PORT 1 (Radio Telemetry):          applet link <BOARD> tcp <PORT> (9092)  ║");
+        System.out.println("║    PORT 2 (Terminal Netlist Bus):     workspace terminal link tcp (9093)     ║");
+        System.out.println("║                                                                              ║");
+        System.out.println("║  [HELP & EXIT]                                                               ║");
+        System.out.println("║    help / menu                        reprint this command guide             ║");
+        System.out.println("║    exit                               shutdown workbench & exit              ║");
+        System.out.println("╚══════════════════════════════════════════════════════════════════════════════╝");
     }
 
     // ─── Command dispatcher ───────────────────────────────────────────────────
@@ -772,7 +792,12 @@ public class SmartRoomCLI {
                         System.out.printf("    [COMP] %-12s  type=%s%n", cid, c.getType()));
                 }
 
-                default -> System.out.println("[ERR] Unknown command. Type 'exit' to quit.");
+                // ── help / menu / ? ──────────────────────────────────────────
+                case "help", "menu", "?" -> {
+                    printBanner();
+                }
+
+                default -> System.out.println("[ERR] Unknown command. Type 'help' or 'menu' to list commands, or 'exit' to quit.");
             }
         } catch (ArrayIndexOutOfBoundsException e) {
             System.out.println("[SYNTAX] Missing argument.");
