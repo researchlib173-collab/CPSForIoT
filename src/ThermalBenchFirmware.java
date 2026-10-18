@@ -149,14 +149,33 @@ public class ThermalBenchFirmware implements CpsDomain.Firmware {
 
         double maxHotspot = tempMosfet;
 
-        // ── 3. EFFICIENCY & POWER DISSIPATION MATH ─────────────────────────────
-        pinW   = vin * iin;
-        poutW  = vout * iout * 0.96; // 4% shunt & thermal losses
-        plossW = Math.max(0.0, pinW - poutW);
+        // ── 3. DYNAMIC EFFICIENCY & POWER DISSIPATION MATH ─────────────────────
+        pinW = vin * iin;
 
-        if (pinW > 0.2) {
-            efficiency = Math.min(99.0, (poutW / pinW) * 100.0);
+        if (psuEnabled && pinW > 0.2) {
+            // Realistic switched-mode power converter loss model:
+            // 1. Quiescent control IC bias & gate drive losses
+            double pGate = 0.28 + (0.012 * vin);
+            // 2. Switching transition losses (proportional to V * I)
+            double pSw = 0.018 * vin * iin;
+            // 3. Conduction losses (I^2 * R) with thermal coefficient (+0.55%/°C above 25°C)
+            double rEff = 0.22 * (1.0 + 0.0055 * Math.max(0.0, tempMosfet - 25.0));
+            double pCond = (iin * iin) * rEff;
+            // 4. Elevated temperature magnetic core eddy & diode leakage losses
+            double pThermal = 0.035 * iin * Math.max(0.0, (tempMosfet - 25.0) / 10.0);
+
+            plossW = pGate + pSw + pCond + pThermal;
+            poutW = Math.max(0.0, pinW - plossW);
+            efficiency = Math.max(0.0, Math.min(98.5, (poutW / pinW) * 100.0));
+
+            // Dynamically reflect slight voltage drop under loaded converter impedance
+            if (iin > 0.01) {
+                vout = Math.max(0.0, poutW / iin);
+                iout = iin;
+            }
         } else {
+            poutW = 0.0;
+            plossW = 0.0;
             efficiency = 0.0;
         }
 
