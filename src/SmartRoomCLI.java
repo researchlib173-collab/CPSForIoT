@@ -80,14 +80,17 @@ public class SmartRoomCLI {
         System.out.println("║                                                                              ║");
         System.out.println("║  [GRAPHICAL APPLETS & CAD]                                                   ║");
         System.out.println("║    autoroute / aroute [NAME/FILE]     visual circuit schematic CAD viewer    ║");
+        System.out.println("║    applet room                        Smart Room status & telemetry dashboard║");
+        System.out.println("║    applet sensor                      Smart Room physical sensor input panel ║");
         System.out.println("║    applet dashboard                   Thermal Bench telemetry dashboard      ║");
         System.out.println("║    applet input                       Regulated Power Supply & motor GUI     ║");
         System.out.println("║    applet blink                       ESP32 LED blink visualizer             ║");
         System.out.println("║    pinfix <BOARD> [IMAGE]             calibrate visual pin coordinates       ║");
         System.out.println("║                                                                              ║");
         System.out.println("║  [NETWORKING PORTS]                                                          ║");
-        System.out.println("║    PORT 1 (Radio Telemetry):          applet link <BOARD> tcp <PORT> (9092)  ║");
-        System.out.println("║    PORT 2 (Terminal Netlist Bus):     workspace terminal link tcp (9093)     ║");
+        System.out.println("║    Smart Room Project:    Port 1 Telemetry: 9090  | Port 2 Terminals: 9091   ║");
+        System.out.println("║    Thermal Bench Project: Port 1 Telemetry: 9092  | Port 2 Terminals: 9093   ║");
+        System.out.println("║    ESP32 Blink Project:   Port 1 Telemetry: 9094                             ║");
         System.out.println("║                                                                              ║");
         System.out.println("║  [HELP & EXIT]                                                               ║");
         System.out.println("║    help / menu                        reprint this command guide             ║");
@@ -724,6 +727,14 @@ public class SmartRoomCLI {
                         int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9094;
                         System.out.printf("[APPLET] Launching LED Blink Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new LedBlinkApplet("localhost", port));
+                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("room") || parts[1].equalsIgnoreCase("smartroom") || parts[1].equalsIgnoreCase("roomdash"))) {
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9090;
+                        System.out.printf("[APPLET] Launching Room Dashboard Applet (port %d)...%n", port);
+                        SwingUtilities.invokeLater(() -> new RoomDashboardApplet("localhost", port));
+                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("sensor") || parts[1].equalsIgnoreCase("stimulus") || parts[1].equalsIgnoreCase("sensors"))) {
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9091;
+                        System.out.printf("[APPLET] Launching Sensor Input Applet (port %d)...%n", port);
+                        SwingUtilities.invokeLater(() -> new SensorInputApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("dashboard") || parts[1].equalsIgnoreCase("dash") || parts[1].equalsIgnoreCase("thermal"))) {
                         int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9092;
                         System.out.printf("[APPLET] Launching Thermal Bench Telemetry Dashboard (port %d)...%n", port);
