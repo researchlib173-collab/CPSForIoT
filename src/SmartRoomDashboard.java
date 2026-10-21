@@ -71,8 +71,9 @@ public class SmartRoomDashboard extends JFrame {
 
     public SmartRoomDashboard(String host, int port) {
         super("Smart Room Dashboard — CPS Sensor Fusion");
-        this.host = host; this.port = port;
-        this.terminalPort = port + 1; // e.g., 9091
+        this.host = host;
+        this.port = (port > 0) ? port : CpsDomain.PORT_TELEMETRY; // 9090
+        this.terminalPort = CpsDomain.PORT_SENSORS; // 9091 (Sensors Bus)
         buildUI();
         startUiTimer();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
