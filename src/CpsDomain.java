@@ -9,6 +9,13 @@ import java.awt.geom.Point2D;
 // ============================================================================
 public class CpsDomain {
 
+    // ========================================================================
+    // CANONICAL 3-PORT ARCHITECTURE (Strictly Fixed Across ALL Projects)
+    // ========================================================================
+    public static final int PORT_TELEMETRY = 9090; // All Wi-Fi / Radio Telemetry Broadcasts
+    public static final int PORT_SENSORS   = 9091; // All Physical Sensor Stimuli (Inputs)
+    public static final int PORT_ACTUATORS = 9092; // All Physical Actuator States & Outputs
+
     public enum PinMode { DIGITAL_IN, DIGITAL_OUT, ANALOG_IN, PWM_OUT }
     public enum SignalState { LOW, HIGH }
 
@@ -567,8 +574,13 @@ public class CpsDomain {
         public McuHAL getHal() { return hal; }
 
         public void enableRadioBridge(int port) {
-            this.radioBridge = ExternalAppletBridge.getOrCreate(port, "RadioBridge-" + id);
+            int actualPort = (port > 0) ? port : PORT_TELEMETRY;
+            this.radioBridge = ExternalAppletBridge.getOrCreate(actualPort, "RadioBridge-" + id);
             this.socketBridge = this.radioBridge;
+        }
+
+        public void enableRadioBridge() {
+            enableRadioBridge(PORT_TELEMETRY);
         }
 
         // Backward compatibility
@@ -663,7 +675,7 @@ public class CpsDomain {
         public void addMessageListener(MessageListener l) { listeners.add(l); }
     }
 
-    // --- 5. PORT 2: PHYSICAL TERMINAL BUS BRIDGE (Workspace Pin Netlist Tap) ---
+    // --- 5. PHYSICAL TERMINAL & HARDWARE BUS BRIDGES (Ports 9091 & 9092) ---
     public static class PhysicalTerminalBusBridge {
         private static final Map<Integer, PhysicalTerminalBusBridge> activeBridges = new ConcurrentHashMap<>();
 
@@ -676,6 +688,24 @@ public class CpsDomain {
             PhysicalTerminalBusBridge created = new PhysicalTerminalBusBridge(port, boards, wires);
             activeBridges.put(port, created);
             return created;
+        }
+
+        public static PhysicalTerminalBusBridge getSensorBridge(Map<String, Board> boards, List<Wire> wires) {
+            return getOrCreate(PORT_SENSORS, boards, wires);
+        }
+
+        public static PhysicalTerminalBusBridge getActuatorBridge(Map<String, Board> boards, List<Wire> wires) {
+            return getOrCreate(PORT_ACTUATORS, boards, wires);
+        }
+
+        public static void broadcastToAllBridges(String msg, PrintWriter exclude) {
+            for (PhysicalTerminalBusBridge b : activeBridges.values()) {
+                for (PrintWriter client : b.activeClients) {
+                    if (client != exclude) {
+                        try { client.println(msg); } catch (Exception ignored) {}
+                    }
+                }
+            }
         }
 
         private final int port;
@@ -703,8 +733,10 @@ public class CpsDomain {
         }
 
         private void startServer() {
+            String role = (port == PORT_SENSORS) ? "ALL SENSORS BUS" :
+                          (port == PORT_ACTUATORS) ? "ALL ACTUATORS BUS" : "PHYSICAL BUS";
             try (ServerSocket server = new ServerSocket(port)) {
-                System.out.printf("[PORT 2 - TERMINALS] Physical Terminal Bus open on port %d! Waiting for DAQ/testbed...%n", port);
+                System.out.printf("[%s] Port %d active! Waiting for DAQ/testbed/applet...%n", role, port);
                 while (isRunning) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress());
@@ -712,17 +744,19 @@ public class CpsDomain {
                     ct.start();
                 }
             } catch (IOException e) {
-                System.out.printf("[PORT 2 ERROR] Terminal bridge (port %d): %s%n", port, e.getMessage());
+                System.out.printf("[%s ERROR] (port %d): %s%n", role, port, e.getMessage());
             }
         }
 
         private void handleClient(Socket client) {
-            System.out.printf("[PORT 2 - TERMINALS] Physical I/O Testbed tapped into terminal bus from %s%n", client.getRemoteSocketAddress());
+            String role = (port == PORT_SENSORS) ? "SENSORS" :
+                          (port == PORT_ACTUATORS) ? "ACTUATORS" : "TERMINALS";
+            System.out.printf("[%s BUS] Client tapped into port %d from %s%n", role, port, client.getRemoteSocketAddress());
             try (BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                  PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true)) {
                 
                 activeClients.add(out);
-                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + port + "}");
+                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + port + ",\"role\":\"" + role + "\"}");
                 
                 String line;
                 while ((line = in.readLine()) != null) {
@@ -730,7 +764,7 @@ public class CpsDomain {
                 }
             } catch (IOException ignored) {
             } finally {
-                System.out.println("[PORT 2 - TERMINALS] Testbed tap disconnected.");
+                System.out.printf("[%s BUS] Client on port %d disconnected.%n", role, port);
             }
         }
 
@@ -847,11 +881,7 @@ public class CpsDomain {
         }
 
         public void broadcastTerminalEvent(String jsonMsg, PrintWriter source) {
-            for (PrintWriter client : activeClients) {
-                if (client != source) {
-                    client.println(jsonMsg);
-                }
-            }
+            broadcastToAllBridges(jsonMsg, source);
         }
 
         public void broadcastNetlistTick() {

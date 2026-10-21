@@ -20,7 +20,17 @@ public class SmartRoomCLI {
     public static List<CpsDomain.Wire> wires    = new ArrayList<>();
     public static PresenceFusionEngine fusion   = null;   // Set when presence engine is attached
     public static SmartRoomFirmware fusionFirmware = null; // Flashed on-board firmware
-    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null; // PORT 2: Physical Netlist Terminal Bus
+
+    // ========================================================================
+    // CANONICAL 3-PORT ARCHITECTURE (Fixed across ALL projects)
+    // Port 9090 (Telemetry): ExternalAppletBridge on MCU nodes
+    // Port 9091 (Sensors):   All physical sensor stimuli & netlist inputs
+    // Port 9092 (Actuators): All physical actuator states & control
+    // ========================================================================
+    public static CpsDomain.PhysicalTerminalBusBridge sensorBridge   = null; // PORT 9091
+    public static CpsDomain.PhysicalTerminalBusBridge actuatorBridge = null; // PORT 9092
+    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null; // Legacy alias to sensorBridge
+
     private static volatile boolean isRunning   = false;
     private static final ScheduledExecutorService scheduler =
         Executors.newScheduledThreadPool(2);
@@ -80,17 +90,17 @@ public class SmartRoomCLI {
         System.out.println("║                                                                              ║");
         System.out.println("║  [GRAPHICAL APPLETS & CAD]                                                   ║");
         System.out.println("║    autoroute / aroute [NAME/FILE]     visual circuit schematic CAD viewer    ║");
-        System.out.println("║    applet room                        Smart Room status & telemetry dashboard║");
-        System.out.println("║    applet sensor                      Smart Room physical sensor input panel ║");
-        System.out.println("║    applet dashboard                   Thermal Bench telemetry dashboard      ║");
-        System.out.println("║    applet input                       Regulated Power Supply & motor GUI     ║");
-        System.out.println("║    applet blink                       ESP32 LED blink visualizer             ║");
+        System.out.println("║    applet room                        Smart Room status dashboard (Port 9090)║");
+        System.out.println("║    applet sensor                      Smart Room sensor panel     (Port 9091)║");
+        System.out.println("║    applet dashboard                   Thermal Bench telemetry     (Port 9090)║");
+        System.out.println("║    applet input                       Power supply & motor stimuli(Port 9091)║");
+        System.out.println("║    applet blink                       ESP32 LED actuator display  (Port 9092)║");
         System.out.println("║    pinfix <BOARD> [IMAGE]             calibrate visual pin coordinates       ║");
         System.out.println("║                                                                              ║");
-        System.out.println("║  [NETWORKING PORTS]                                                          ║");
-        System.out.println("║    Smart Room Project:    Port 1 Telemetry: 9090  | Port 2 Terminals: 9091   ║");
-        System.out.println("║    Thermal Bench Project: Port 1 Telemetry: 9092  | Port 2 Terminals: 9093   ║");
-        System.out.println("║    ESP32 Blink Project:   Port 1 Telemetry: 9094                             ║");
+        System.out.println("║  [CANONICAL 3-PORT ARCHITECTURE - FIXED FOR ALL PROJECTS]                   ║");
+        System.out.println("║    Port 9090 (Wi-Fi Telemetry): All MCU Radio Telemetry Broadcast Streams    ║");
+        System.out.println("║    Port 9091 (All Sensors):     All Physical Sensor Stimuli (Inputs)         ║");
+        System.out.println("║    Port 9092 (All Actuators):   All Physical Actuator States & Control       ║");
         System.out.println("║                                                                              ║");
         System.out.println("║  [HELP & EXIT]                                                               ║");
         System.out.println("║    help / menu                        reprint this command guide             ║");
@@ -121,13 +131,23 @@ public class SmartRoomCLI {
                             activeWorkspace = wName;
                             System.out.printf("[WORKSPACE] Switched to: %s%n", wName);
                         }
-                        case "terminal" -> {
-                            // workspace terminal link tcp 9091
+                        case "terminal", "sensor" -> {
+                            // workspace terminal link tcp 9091 | workspace sensor link tcp 9091
                             if (parts[2].equalsIgnoreCase("link")) {
                                 int port = Integer.parseInt(parts[4]);
-                                terminalBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
-                                terminalBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
-                                System.out.printf("[PORT 2 - TERMINALS] Physical Netlist Terminal Bus open on port %d%n", port);
+                                sensorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
+                                sensorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
+                                terminalBridge = sensorBridge;
+                                System.out.printf("[PORT %d - SENSORS] Sensor Input Bus open on port %d%n", port, port);
+                            }
+                        }
+                        case "actuator" -> {
+                            // workspace actuator link tcp 9092
+                            if (parts[2].equalsIgnoreCase("link")) {
+                                int port = Integer.parseInt(parts[4]);
+                                actuatorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
+                                actuatorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
+                                System.out.printf("[PORT %d - ACTUATORS] Actuator Output Bus open on port %d%n", port, port);
                             }
                         }
                         case "list" -> workspaces.forEach((n, b) ->
@@ -151,10 +171,11 @@ public class SmartRoomCLI {
                             String filename = parts[2];
                             if (!filename.endsWith(".json")) filename += ".json";
                             File f = resolveLayoutFile(filename);
-                            int tPort = (terminalBridge != null) ? terminalBridge.getPort() : 0;
-                            CpsPersistence.saveLayout(activeWorkspace, boards(), wires, tPort, f);
-                            System.out.printf("[LAYOUT] Successfully saved workspace layout '%s' (%d boards, %d wires, terminalPort=%d) to: %s%n",
-                                activeWorkspace, boards().size(), wires.size(), tPort, f.getPath());
+                            int sPort = (sensorBridge != null) ? sensorBridge.getPort() : CpsDomain.PORT_SENSORS;
+                            int aPort = (actuatorBridge != null) ? actuatorBridge.getPort() : CpsDomain.PORT_ACTUATORS;
+                            CpsPersistence.saveLayout(activeWorkspace, boards(), wires, sPort, aPort, f);
+                            System.out.printf("[LAYOUT] Successfully saved workspace layout '%s' (%d boards, %d wires, sensorPort=%d, actuatorPort=%d) to: %s%n",
+                                activeWorkspace, boards().size(), wires.size(), sPort, aPort, f.getPath());
                         }
                         case "load" -> {
                             if (parts.length < 3) {
@@ -173,13 +194,16 @@ public class SmartRoomCLI {
                                     fusionFirmware = srf;
                                 }
                             }
-                            if (data.terminalPort > 0) {
-                                terminalBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(data.terminalPort, boards(), wires);
-                                terminalBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
-                            } else if (terminalBridge != null) {
-                                terminalBridge.updateContext(boards(), wires);
-                                terminalBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
-                            }
+                            // Canonical 3-Port Architecture:
+                            // Port 9091: All Sensors Bus
+                            // Port 9092: All Actuators Bus
+                            int sPort = (data.sensorPort > 0) ? data.sensorPort : CpsDomain.PORT_SENSORS;
+                            int aPort = (data.actuatorPort > 0) ? data.actuatorPort : CpsDomain.PORT_ACTUATORS;
+                            sensorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(sPort, boards(), wires);
+                            sensorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
+                            actuatorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(aPort, boards(), wires);
+                            actuatorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
+                            terminalBridge = sensorBridge;
 
                             // Automatically start simulation clock so firmware ticks continuously
                             if (!isRunning) {
@@ -190,8 +214,8 @@ public class SmartRoomCLI {
                             // Execute immediate first tick for initial telemetry broadcast
                             tick();
 
-                            System.out.printf("[LAYOUT] Successfully loaded layout '%s' (%d boards, %d wires) from: %s%n",
-                                activeWorkspace, data.boards.size(), data.wires.size(), f.getPath());
+                            System.out.printf("[LAYOUT] Successfully loaded layout '%s' (%d boards, %d wires, sensorPort=%d, actuatorPort=%d) from: %s%n",
+                                activeWorkspace, data.boards.size(), data.wires.size(), sPort, aPort, f.getPath());
                         }
                         case "list" -> {
                             File dir = new File("layouts");
@@ -724,23 +748,23 @@ public class SmartRoomCLI {
                         b.enableSocketBridge(port);
                         System.out.printf("[BRIDGE]    %s → localhost:%d%n", parts[2], port);
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("blink") || parts[1].equalsIgnoreCase("led"))) {
-                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9094;
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_ACTUATORS; // 9092 (Actuators)
                         System.out.printf("[APPLET] Launching LED Blink Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new LedBlinkApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("room") || parts[1].equalsIgnoreCase("smartroom") || parts[1].equalsIgnoreCase("roomdash"))) {
-                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9090;
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_TELEMETRY; // 9090 (Wi-Fi Telemetry)
                         System.out.printf("[APPLET] Launching Room Dashboard Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new RoomDashboardApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("sensor") || parts[1].equalsIgnoreCase("stimulus") || parts[1].equalsIgnoreCase("sensors"))) {
-                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9091;
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
                         System.out.printf("[APPLET] Launching Sensor Input Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new SensorInputApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("dashboard") || parts[1].equalsIgnoreCase("dash") || parts[1].equalsIgnoreCase("thermal"))) {
-                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9092;
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_TELEMETRY; // 9090 (Wi-Fi Telemetry)
                         System.out.printf("[APPLET] Launching Thermal Bench Telemetry Dashboard (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new ThermalBenchDashboardApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("input") || parts[1].equalsIgnoreCase("rps") || parts[1].equalsIgnoreCase("psu"))) {
-                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : 9093;
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
                         System.out.printf("[APPLET] Launching Regulated Power Supply & Motor Input Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new ThermalBenchInputApplet("localhost", port));
                     }
@@ -842,7 +866,11 @@ public class SmartRoomCLI {
             }
         }
         for (CpsDomain.Board b : boards().values()) b.tickLogic();
-        if (terminalBridge != null) terminalBridge.broadcastNetlistTick();
+        if (sensorBridge != null) sensorBridge.broadcastNetlistTick();
+        if (actuatorBridge != null) actuatorBridge.broadcastNetlistTick();
+        if (terminalBridge != null && terminalBridge != sensorBridge && terminalBridge != actuatorBridge) {
+            terminalBridge.broadcastNetlistTick();
+        }
     }
 
     private static CpsDomain.Wire findWireByName(String name) {

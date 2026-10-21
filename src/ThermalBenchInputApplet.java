@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 //   - Shared Coarse & Fine Knobs set with a Mode Toggle Switch (VOLTAGE / CURRENT)
 //   - Animated 24V DC Motor running proportionally to voltage & current load
 //   - Dynamic Thermal Dissipation & Temperature Sensor Simulation
-//   - Connects to the CPS Workbench Netlist Bus on localhost:9093
+//   - Connects to the CPS Workbench Sensor Bus on localhost:9091
 // ============================================================================
 public class ThermalBenchInputApplet extends JFrame {
 
@@ -107,7 +107,7 @@ public class ThermalBenchInputApplet extends JFrame {
     }
 
     public ThermalBenchInputApplet() {
-        this("localhost", 9093);
+        this("localhost", CpsDomain.PORT_SENSORS);
     }
 
     private void buildInstrumentUI() {
@@ -843,7 +843,7 @@ public class ThermalBenchInputApplet extends JFrame {
 
     public static void main(String[] args) {
         String host = (args.length > 0) ? args[0] : "localhost";
-        int port = (args.length > 1) ? Integer.parseInt(args[1]) : 9093;
+        int port = (args.length > 1) ? Integer.parseInt(args[1]) : CpsDomain.PORT_SENSORS;
         SwingUtilities.invokeLater(() -> new ThermalBenchInputApplet(host, port));
     }
 }

@@ -17,7 +17,10 @@ public class CpsPersistence {
         public String workspaceName;
         public Map<String, CpsDomain.Board> boards = new LinkedHashMap<>();
         public List<CpsDomain.Wire> wires = new ArrayList<>();
-        public int terminalPort = 0;
+        public int terminalPort = CpsDomain.PORT_SENSORS; // 9091 (legacy alias)
+        public int sensorPort   = CpsDomain.PORT_SENSORS; // 9091 (all physical sensors)
+        public int actuatorPort = CpsDomain.PORT_ACTUATORS; // 9092 (all physical actuators)
+        public int radioPort    = CpsDomain.PORT_TELEMETRY; // 9090 (all Wi-Fi radio telemetry)
     }
 
     // =========================================================================
@@ -28,7 +31,7 @@ public class CpsPersistence {
                                   Map<String, CpsDomain.Board> boards,
                                   List<CpsDomain.Wire> wires,
                                   File targetFile) throws IOException {
-        saveLayout(workspaceName, boards, wires, 0, targetFile);
+        saveLayout(workspaceName, boards, wires, CpsDomain.PORT_SENSORS, CpsDomain.PORT_ACTUATORS, targetFile);
     }
 
     public static void saveLayout(String workspaceName,
@@ -36,15 +39,25 @@ public class CpsPersistence {
                                   List<CpsDomain.Wire> wires,
                                   int terminalPort,
                                   File targetFile) throws IOException {
+        saveLayout(workspaceName, boards, wires, terminalPort, CpsDomain.PORT_ACTUATORS, targetFile);
+    }
+
+    public static void saveLayout(String workspaceName,
+                                  Map<String, CpsDomain.Board> boards,
+                                  List<CpsDomain.Wire> wires,
+                                  int sensorPort,
+                                  int actuatorPort,
+                                  File targetFile) throws IOException {
         ensureParentDir(targetFile);
 
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("format", "CPS_LAYOUT_V1");
         root.put("workspace", workspaceName);
         root.put("savedAt", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
-        if (terminalPort > 0) {
-            root.put("terminalPort", terminalPort);
-        }
+        root.put("radioPort", CpsDomain.PORT_TELEMETRY);
+        root.put("sensorPort", (sensorPort > 0) ? sensorPort : CpsDomain.PORT_SENSORS);
+        root.put("actuatorPort", (actuatorPort > 0) ? actuatorPort : CpsDomain.PORT_ACTUATORS);
+        root.put("terminalPort", (sensorPort > 0) ? sensorPort : CpsDomain.PORT_SENSORS); // backward compatibility
 
         // Serialize boards
         List<Map<String, Object>> boardsList = new ArrayList<>();
@@ -98,8 +111,18 @@ public class CpsPersistence {
         Map<String, Object> root = (Map<String, Object>) parsed;
         LayoutData layout = new LayoutData();
         layout.workspaceName = (String) root.getOrDefault("workspace", "RestoredWorkspace");
-        if (root.containsKey("terminalPort")) {
+        if (root.containsKey("sensorPort")) {
+            layout.sensorPort = ((Number) root.get("sensorPort")).intValue();
+            layout.terminalPort = layout.sensorPort;
+        } else if (root.containsKey("terminalPort")) {
             layout.terminalPort = ((Number) root.get("terminalPort")).intValue();
+            layout.sensorPort = layout.terminalPort;
+        }
+        if (root.containsKey("actuatorPort")) {
+            layout.actuatorPort = ((Number) root.get("actuatorPort")).intValue();
+        }
+        if (root.containsKey("radioPort")) {
+            layout.radioPort = ((Number) root.get("radioPort")).intValue();
         }
 
         // 1. Reconstitute Boards
@@ -389,7 +412,13 @@ public class CpsPersistence {
         // Restore radio telemetry bridge if recorded
         if (bm.containsKey("radioPort")) {
             int rPort = ((Number) bm.get("radioPort")).intValue();
+            // Automatically normalize legacy telemetry ports (9092, 9094) to canonical PORT_TELEMETRY (9090)
+            if (rPort == 9092 || rPort == 9094) {
+                rPort = CpsDomain.PORT_TELEMETRY;
+            }
             board.enableRadioBridge(rPort);
+        } else if (board.getFlashedFirmware() != null) {
+            board.enableRadioBridge(CpsDomain.PORT_TELEMETRY);
         }
 
         // Restore visual layout coordinates & image path

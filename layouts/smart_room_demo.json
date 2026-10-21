@@ -3,6 +3,9 @@
   "workspace": "SmartRoom",
   "savedAt": "2026-10-17 09:00:25",
   "terminalPort": 9091,
+  "sensorPort": 9091,
+  "actuatorPort": 9092,
+  "radioPort": 9090,
   "boards": [
     {
       "id": "RoomMasterMCU",

@@ -14,7 +14,7 @@ import java.util.Collections;
 // ============================================================================
 // THERMAL BENCH DASHBOARD APPLET — Telemetry Monitor & Efficiency Visualizer
 // ============================================================================
-// Connects to Port 1 (9092) - Virtual Wi-Fi Radio Telemetry Stream.
+// Connects to Port 9090 (PORT_TELEMETRY) - Canonical Wi-Fi Radio Telemetry Stream.
 // Visualizes:
 //   - Real-time Efficiency Arc Gauge (eta = Pout / Pin * 100%)
 //   - Electrical Power Balance (Pin, Pout, Ploss)
@@ -92,7 +92,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
     }
 
     public ThermalBenchDashboardApplet() {
-        this("localhost", 9092);
+        this("localhost", CpsDomain.PORT_TELEMETRY);
     }
 
     private void buildUI() {
@@ -743,7 +743,7 @@ public class ThermalBenchDashboardApplet extends JFrame {
     // ─── Entry Point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
         String host = args.length > 0 ? args[0] : "localhost";
-        int port = args.length > 1 ? Integer.parseInt(args[1]) : 9092;
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : CpsDomain.PORT_TELEMETRY;
         SwingUtilities.invokeLater(() -> new ThermalBenchDashboardApplet(host, port));
     }
 }

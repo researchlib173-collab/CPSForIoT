@@ -17,8 +17,8 @@ import java.util.List;
 //   specular glass reflections, and dynamic radial bloom flares.
 // - Real-time rolling square wave logic analyzer waveform.
 // - Digital telemetry HUD: State, Voltage (3.3V/0V), Period, Frequency, Cycles.
-// - Seamless dual-mode: Synchronizes with Port 1 (9094) ESP32 radio socket bridge,
-//   and features an automatic standalone simulation clock when run independently.
+// - Seamless dual-mode: Synchronizes with Port 9092 (PORT_ACTUATORS) physical bus or
+//   Port 9090 (PORT_TELEMETRY) radio socket bridge, with automatic fallback to internal clock.
 // - Space Mono typography across all UI elements and custom graphics.
 // ============================================================================
 public class LedBlinkApplet extends JFrame {
@@ -136,7 +136,7 @@ public class LedBlinkApplet extends JFrame {
     }
 
     public LedBlinkApplet() {
-        this("localhost", 9094);
+        this("localhost", CpsDomain.PORT_ACTUATORS);
     }
 
     private void initHistory() {
@@ -225,6 +225,27 @@ public class LedBlinkApplet extends JFrame {
             //  "ledPin":"GPIO_02","ledState":"HIGH","voltage":3.30,"toggleCount":14,"periodMs":1000,"freqHz":1.00}
             String trimmed = json.trim();
             if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return;
+
+            // Handle Actuator Bus (Port 9092) PIN_CHANGED events
+            if (trimmed.contains("\"event\":\"PIN_CHANGED\"") || trimmed.contains("\"PIN_CHANGED\"")) {
+                String term = extractJsonString(trimmed, "terminal");
+                Double v = extractJsonDouble(trimmed, "voltage");
+                String st = extractJsonString(trimmed, "state");
+                if (term != null && (term.contains("LED") || term.contains("GPIO_02") || term.contains("GPIO_2") || term.contains("ANODE"))) {
+                    SwingUtilities.invokeLater(() -> {
+                        if (v != null) voltage = v;
+                        if (st != null) {
+                            ledState = st.equalsIgnoreCase("HIGH") || (v != null && v > 1.65);
+                        } else if (v != null) {
+                            ledState = (v > 1.65);
+                        }
+                        toggleCount++;
+                        recordSample(voltage);
+                        updateTelemetryCards();
+                    });
+                    return;
+                }
+            }
 
             String dev = extractJsonString(trimmed, "device");
             String fw = extractJsonString(trimmed, "firmware");
@@ -884,7 +905,7 @@ public class LedBlinkApplet extends JFrame {
     // ─── Entry Point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
         String h = "localhost";
-        int p = 9094;
+        int p = CpsDomain.PORT_ACTUATORS; // 9092
         if (args.length > 0) {
             try { p = Integer.parseInt(args[0]); } catch (Exception ignored) { h = args[0]; }
         }

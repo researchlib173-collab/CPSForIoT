@@ -2,7 +2,10 @@
   "format": "CPS_LAYOUT_V1",
   "workspace": "ThermalBench",
   "savedAt": "2026-10-17 15:40:00",
-  "terminalPort": 9093,
+  "terminalPort": 9091,
+  "sensorPort": 9091,
+  "actuatorPort": 9092,
+  "radioPort": 9090,
   "boards": [
     {
       "id": "BenchMasterMCU",
@@ -36,7 +39,7 @@
           "psuEnablePin": "GPIO_23"
         }
       },
-      "radioPort": 9092,
+      "radioPort": 9090,
       "imagePath": "assets/esp32_wroom.png",
       "layoutX": 460,
       "layoutY": 180,

@@ -2,7 +2,10 @@
   "format": "CPS_LAYOUT_V1",
   "workspace": "ESP32_Blink",
   "savedAt": "2026-10-17 11:30:00",
-  "terminalPort": 9095,
+  "terminalPort": 9091,
+  "sensorPort": 9091,
+  "actuatorPort": 9092,
+  "radioPort": 9090,
   "boards": [
     {
       "id": "ESP32_BlinkNode",
@@ -38,7 +41,7 @@
           "periodMs": 1000
         }
       },
-      "radioPort": 9094,
+      "radioPort": 9090,
       "imagePath": "assets/esp32_wroom.png",
       "layoutX": 180,
       "layoutY": 100,
