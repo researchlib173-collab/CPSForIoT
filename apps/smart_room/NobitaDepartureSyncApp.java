@@ -288,7 +288,7 @@ public class NobitaDepartureSyncApp extends JFrame {
         scenarioSelector = new JComboBox<>(Scenario.values());
         scenarioSelector.setSelectedItem(currentScenario);
         scenarioSelector.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        scenarioSelector.setBackground(new Color(10, 15, 26));
+        scenarioSelector.setBackground(new Color(0,0,0));
         scenarioSelector.setForeground(TEXT_WHITE);
         scenarioSelector.setFocusable(false);
         scenarioSelector.setBorder(new LineBorder(BORDER_BRIGHT, 1, true));

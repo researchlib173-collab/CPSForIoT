@@ -16,15 +16,15 @@ import java.util.List;
 public class SmartRoomDashboard extends JFrame {
 
     // ─── Colours ──────────────────────────────────────────────────────────────
-    static final Color BG        = new Color(18, 18, 28);
-    static final String FONT_FAMILY = "Space Mono";
-    static final Color PANEL_BG  = new Color(26, 26, 40);
-    static final Color ACCENT    = new Color(80, 140, 255);
-    static final Color GREEN     = new Color(50, 220, 100);
-    static final Color AMBER     = new Color(255, 190, 50);
-    static final Color RED_C     = new Color(230, 70,  60);
-    static final Color DIM       = new Color(70,  70,  90);
-    static final Color TEXT      = new Color(210, 215, 230);
+    static final Color BG        = new Color(10, 13, 20);
+    static final String FONT_FAMILY = "Segoe UI Emoji";
+    static final Color PANEL_BG  = new Color(18, 23, 34);
+    static final Color ACCENT    = new Color(56, 189, 248);
+    static final Color GREEN     = new Color(34, 197, 94);
+    static final Color AMBER     = new Color(251, 191, 36);
+    static final Color RED_C     = new Color(244, 63,  94);
+    static final Color DIM       = new Color(71,  85,  105);
+    static final Color TEXT      = new Color(248, 250, 252);
 
     // ─── Network ─────────────────────────────────────────────────────────────
     private Socket       socket;
@@ -317,52 +317,125 @@ public class SmartRoomDashboard extends JFrame {
 
     // ─── Custom drawing panels ────────────────────────────────────────────────
 
-    /** Large centre panel — shows VACANT / OCCUPIED / HYSTERESIS with animated glow */
+    /** Large centre panel — shows VACANT / OCCUPIED / HYSTERESIS with glossy 3D glass bubble */
     class RoomStatePanel extends JPanel {
         RoomStatePanel() { setBackground(PANEL_BG); setBorder(titledBorder("🏠  ROOM STATE")); }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            Graphics2D g2 = (Graphics2D) g;
+            Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = getWidth(), h = getHeight();
-            int cx = w / 2, cy = h / 2;
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            Color stateColor = switch (roomState) {
+            int w = getWidth(), h = getHeight();
+            int cx = w / 2, cy = h / 2 - 12;
+            int r = Math.min(w, h) / 3;
+            if (r < 24) r = 24;
+
+            Color stateBase = switch (roomState) {
                 case "OCCUPIED"   -> GREEN;
                 case "HYSTERESIS" -> AMBER;
                 default           -> DIM;
             };
 
-            // Glow circle
-            int r = Math.min(w, h) / 3;
-            for (int i = r + 30; i > r; i -= 2) {
-                float alpha = (r + 30f - i) / 40f * 0.15f;
-                g2.setColor(new Color(stateColor.getRed(), stateColor.getGreen(),
-                    stateColor.getBlue(), (int)(alpha * 255)));
-                g2.fillOval(cx - i, cy - i, 2 * i, 2 * i);
-            }
-            g2.setColor(stateColor);
+            // ── Ambient Glow Halo ──
+            float pulse = (float) (0.85 + 0.15 * Math.sin(System.currentTimeMillis() / 250.0));
+            Color glowColor = new Color(stateBase.getRed(), stateBase.getGreen(), stateBase.getBlue(), (int) (48 * pulse));
+            g2.setColor(glowColor);
+            g2.fillOval(cx - r - 14, cy - r - 14, (r + 14) * 2, (r + 14) * 2);
+
+            // ── Volumetric 3D Sphere Base with Radial Illumination ──
+            Point2D center = new Point2D.Float(cx, cy + r * 0.15f);
+            float gradRadius = r * 1.15f;
+            float[] dist = {0.0f, 0.65f, 1.0f};
+
+            Color brightCore = blendColor(stateBase, Color.WHITE, 0.40f);
+            Color darkRim    = blendColor(stateBase, Color.BLACK, 0.45f);
+            Color[] colors   = {brightCore, stateBase, darkRim};
+
+            RadialGradientPaint rgp = new RadialGradientPaint(center, gradRadius, dist, colors);
+            g2.setPaint(rgp);
             g2.fillOval(cx - r, cy - r, 2 * r, 2 * r);
 
-            // Icon / letter
-            g2.setColor(BG);
-            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, r / 2));
-            String icon = switch (roomState) {
-                case "OCCUPIED"   -> "●";
-                case "HYSTERESIS" -> "◑";
-                default           -> "○";
-            };
-            FontMetrics fm = g2.getFontMetrics();
-            g2.drawString(icon, cx - fm.stringWidth(icon) / 2, cy + fm.getAscent() / 3);
+            // ── Bottom Bounce Light (Reflective Rim) ──
+            Shape oldClip = g2.getClip();
+            g2.clip(new Ellipse2D.Float(cx - r, cy - r, 2 * r, 2 * r));
 
-            // State label
-            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
-            g2.setColor(stateColor);
-            fm = g2.getFontMetrics();
-            g2.drawString(roomState, cx - fm.stringWidth(roomState) / 2, cy + r + 22);
+            int bounceW = (int) (r * 1.3);
+            int bounceH = (int) (r * 0.45);
+            int bounceX = cx - bounceW / 2;
+            int bounceY = cy + r - bounceH - (int) (r * 0.05);
+
+            LinearGradientPaint bounceGrad = new LinearGradientPaint(
+                cx, bounceY, cx, bounceY + bounceH,
+                new float[]{0.0f, 1.0f},
+                new Color[]{new Color(255, 255, 255, 0), new Color(255, 255, 255, 80)}
+            );
+            g2.setPaint(bounceGrad);
+            g2.fillOval(bounceX, bounceY, bounceW, bounceH);
+
+            // ── Top Glossy Specular Highlight (The 3D Glare) ──
+            int hlW = (int) (r * 1.36);
+            int hlH = (int) (r * 0.85);
+            int hlX = cx - hlW / 2;
+            int hlY = cy - r + (int) (r * 0.06);
+
+            LinearGradientPaint topGlare = new LinearGradientPaint(
+                cx, hlY, cx, hlY + hlH,
+                new float[]{0.0f, 0.35f, 1.0f},
+                new Color[]{
+                    new Color(255, 255, 255, 235),
+                    new Color(255, 255, 255, 115),
+                    new Color(255, 255, 255, 0)
+                }
+            );
+            g2.setPaint(topGlare);
+            g2.fillOval(hlX, hlY, hlW, hlH);
+
+            g2.setClip(oldClip);
+
+            // ── Outer Crisp Glass Rim ──
+            g2.setColor(new Color(255, 255, 255, 85));
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.drawOval(cx - r, cy - r, 2 * r, 2 * r);
+
+            // ── State Text Layer (Segoe UI Emoji) ──
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
+            FontMetrics fm = g2.getFontMetrics();
+            int tx = cx - fm.stringWidth(roomState) / 2;
+            int ty = cy + fm.getAscent() / 2 - 3;
+
+            g2.setColor(new Color(0, 0, 0, 190));
+            g2.drawString(roomState, tx + 1, ty + 2);
+            g2.drawString(roomState, tx, ty + 1);
+
+            g2.setColor(Color.WHITE);
+            g2.drawString(roomState, tx, ty);
+
+            // ── Subtitle Description Below Orb ──
+            String desc = switch (roomState) {
+                case "OCCUPIED"   -> "Occupancy Active — Systems Running";
+                case "HYSTERESIS" -> "Grace Window — Awaiting Micro-Presence";
+                default           -> "Room Empty — Energy Saving Standby";
+            };
+            g2.setColor(TEXT);
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+            FontMetrics fm2 = g2.getFontMetrics();
+            g2.drawString(desc, cx - fm2.stringWidth(desc) / 2, cy + r + 24);
+
+            g2.dispose();
         }
+    }
+
+    private static Color blendColor(Color c1, Color c2, float ratio) {
+        float r = c1.getRed() * (1 - ratio) + c2.getRed() * ratio;
+        float g = c1.getGreen() * (1 - ratio) + c2.getGreen() * ratio;
+        float b = c1.getBlue() * (1 - ratio) + c2.getBlue() * ratio;
+        return new Color((int) Math.min(255, Math.max(0, r)),
+                         (int) Math.min(255, Math.max(0, g)),
+                         (int) Math.min(255, Math.max(0, b)));
     }
 
     /** Three LED-style indicators for PIR, Door, Radar */
