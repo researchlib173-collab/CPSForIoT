@@ -95,6 +95,7 @@ public class SmartRoomCLI {
         System.out.println("║    applet dashboard                   Thermal Bench telemetry     (Port 9090)║");
         System.out.println("║    applet input                       Power supply & motor stimuli(Port 9091)║");
         System.out.println("║    applet blink                       ESP32 LED actuator display  (Port 9092)║");
+        System.out.println("║    applet nobita / sync               Nobita video departure sync (Port 9091)║");
         System.out.println("║    pinfix <BOARD> [IMAGE]             calibrate visual pin coordinates       ║");
         System.out.println("║                                                                              ║");
         System.out.println("║  [CANONICAL 3-PORT ARCHITECTURE - FIXED FOR ALL PROJECTS]                   ║");
@@ -767,6 +768,11 @@ public class SmartRoomCLI {
                         int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
                         System.out.printf("[APPLET] Launching Regulated Power Supply & Motor Input Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new ThermalBenchInputApplet("localhost", port));
+                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("nobita") || parts[1].equalsIgnoreCase("sync") || parts[1].equalsIgnoreCase("video"))) {
+                        int sPort = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS;
+                        int tPort = (parts.length > 3) ? Integer.parseInt(parts[3]) : CpsDomain.PORT_TELEMETRY;
+                        System.out.printf("[APPLET] Launching Nobita Departure CPS Video Sync App (sensors=%d, telem=%d)...%n", sPort, tPort);
+                        SwingUtilities.invokeLater(() -> new NobitaDepartureSyncApp("localhost", sPort, tPort));
                     }
                 }
 
