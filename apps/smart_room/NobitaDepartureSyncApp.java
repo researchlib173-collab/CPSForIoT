@@ -1,28 +1,38 @@
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
  * NobitaDepartureSyncApp
  * ==============================================================================
- * Cyber-Physical Video Synchronization & Embedded Player Application.
+ * Cyber-Physical Embedded Video Player & Simulation Synchronizer.
  *
- * Integrated Media Features:
- * - Plays "Timeline 1.mov" directly synchronized with CPS simulation clock!
- * - Video viewport docked right beside the CPS Telemetry HUD & Sensors.
- * - Frame-accurate event trigger at t = 3.000s:
- *     Nobita Bamboo-Copter exit cuts PIR Motion and mmWave Radar.
- * - Streams sensor stimuli to Port 9091 (Sensors Bus).
- * - Real-time ESP32 MCU telemetry received from Port 9090 (Telemetry Bus).
+ * Integrated Video Features:
+ * - Direct 100% Native Java In-Applet Video Canvas:
+ *     Plays "Timeline 1.mov" directly inside the applet window with 60 FPS rendering.
+ * - Interactive Video Controls:
+ *     Play/Pause, scrub slider, click-to-seek, frame stepper, and restart.
+ * - Exact Cyber-Physical Event Synchronization:
+ *     - At t < 3.0s (Nobita in room):
+ *         PIR Motion = 3.3V (Active), Radar = 2.80V, State = OCCUPIED
+ *     - At t = 3.000s (Nobita Bamboo-Copter Window Exit):
+ *         Physical sensors cut off instantaneously:
+ *           PIR DATA -> 0.0V
+ *           MillimeterWaveRadar -> 0.05V
+ *         Transmitted over Port 9091 (Sensors Bus).
+ *     - Real-Time Telemetry HUD:
+ *         Listens to Port 9090 (Telemetry Bus) and updates State, Relays & Hysteresis.
  * ==============================================================================
  */
 public class NobitaDepartureSyncApp extends JFrame {
@@ -54,27 +64,26 @@ public class NobitaDepartureSyncApp extends JFrame {
     private BufferedReader telemetryIn;
     private volatile boolean telemetryConnected = false;
 
-    // Timeline & Playback State
+    // Timeline & Video Playback State
     private static final double VIDEO_DURATION_SEC = 6.0;
     private static final double EVENT_TRIGGER_SEC  = 3.0; // Cut moment in Timeline 1.mov
+    private static final int VIDEO_FPS             = 20;  // 120 total frames for 6.00s
 
+    private final List<BufferedImage> videoFrames = new ArrayList<>();
     private volatile boolean isPlaying = false;
     private volatile double currentTimelineSec = 0.0;
     private boolean eventDispatched = false;
     private javax.swing.Timer playbackTimer;
 
-    // Video Subprocess & IPC Controller
-    private Process videoProcess;
-    private PrintWriter videoOut;
-    private BufferedReader videoIn;
-    private volatile boolean videoReady = false;
+    // Video Viewport Component
+    private VideoViewportPanel videoViewport;
 
     // UI Elements
     private JLabel statusSensorPill;
     private JLabel statusTelemPill;
     private JLabel statusVideoPill;
     private JLabel timeDisplayLbl;
-    private JProgressBar timelineProgressBar;
+    private JSlider timelineSlider;
     private JButton playBtn;
     private JButton restartBtn;
     private JButton sendOccupiedBtn;
@@ -90,39 +99,22 @@ public class NobitaDepartureSyncApp extends JFrame {
     private JTextArea logArea;
 
     public NobitaDepartureSyncApp(String host, int sensorPort, int telemetryPort) {
-        super("Nobita Departure CPS Video Player & Sync — Timeline 1.mov");
+        super("Nobita Departure CPS In-App Video Player & Synchronizer — Timeline 1.mov");
         this.host = host;
         this.sensorPort = sensorPort;
         this.telemetryPort = telemetryPort;
 
         setupUI();
+        loadVideoFramesAsync();
         initPlaybackTimer();
         connectSockets();
-        launchVideoHostPlayer();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1080, 720);
-        setMinimumSize(new Dimension(940, 600));
+        setSize(1240, 780);
+        setMinimumSize(new Dimension(1080, 680));
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG_DARK);
-
-        // Window lifecycle handlers
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                shutdownVideoPlayer();
-            }
-        });
-
-        addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentMoved(ComponentEvent e) {
-                repositionVideoWindow();
-            }
-        });
-
         setVisible(true);
-        SwingUtilities.invokeLater(this::repositionVideoWindow);
     }
 
     public NobitaDepartureSyncApp() {
@@ -131,7 +123,7 @@ public class NobitaDepartureSyncApp extends JFrame {
 
     private void setupUI() {
         setLayout(new BorderLayout(12, 12));
-        ((JPanel) getContentPane()).setBorder(new EmptyBorder(16, 18, 16, 18));
+        ((JPanel) getContentPane()).setBorder(new EmptyBorder(14, 16, 14, 16));
 
         // ── TOP: Header Banner ────────────────────────────────────────────────
         JPanel header = new JPanel(new BorderLayout(14, 0));
@@ -143,11 +135,11 @@ public class NobitaDepartureSyncApp extends JFrame {
 
         JPanel titleGrp = new JPanel(new GridLayout(2, 1, 0, 3));
         titleGrp.setOpaque(false);
-        JLabel titleLbl = new JLabel("🎬 NOBITA DEPARTURE — LIVE VIDEO & CPS SYNCHRONIZER");
+        JLabel titleLbl = new JLabel("🎬 NOBITA DEPARTURE — IN-APPLET VIDEO & CPS SYNCHRONIZER");
         titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_CYAN);
 
-        JLabel subLbl = new JLabel("Synchronized Media: Timeline 1.mov | Departure at t = 3.00s | Sensors: 9091 | Telemetry: 9090");
+        JLabel subLbl = new JLabel("Native Embedded Video: Timeline 1.mov (Exit at t = 3.00s) | Sensors Bus: " + sensorPort + " | Telemetry: " + telemetryPort);
         subLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         subLbl.setForeground(TEXT_MUTED);
         titleGrp.add(titleLbl);
@@ -167,105 +159,116 @@ public class NobitaDepartureSyncApp extends JFrame {
         header.add(pillsPanel, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);
 
-        // ── CENTER: Timeline Controller & Status HUD ─────────────────────────
-        JPanel centerPanel = new JPanel(new BorderLayout(14, 14));
-        centerPanel.setOpaque(false);
+        // ── MAIN SPLIT: Left = Video Player | Right = CPS Telemetry & Controls ─
+        JPanel mainContent = new JPanel(new BorderLayout(14, 14));
+        mainContent.setOpaque(false);
 
-        // Section A: Video Timeline Synchronizer Card
-        JPanel timelineCard = new JPanel(new BorderLayout(12, 12));
-        timelineCard.setBackground(CARD_BG);
-        timelineCard.setBorder(new CompoundBorder(
+        // LEFT SIDE: Video Player & Direct Transport Bar
+        JPanel leftVideoCard = new JPanel(new BorderLayout(10, 10));
+        leftVideoCard.setBackground(CARD_BG);
+        leftVideoCard.setBorder(new CompoundBorder(
             new LineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(14, 18, 16, 18)
+            new EmptyBorder(12, 14, 12, 14)
         ));
+        leftVideoCard.setPreferredSize(new Dimension(680, 0));
 
-        JPanel tlTopRow = new JPanel(new BorderLayout(10, 0));
-        tlTopRow.setOpaque(false);
+        // Video Viewport Canvas
+        videoViewport = new VideoViewportPanel();
+        leftVideoCard.add(videoViewport, BorderLayout.CENTER);
 
-        JLabel tlHeader = new JLabel("TIMELINE 1.MOV REPLAY & SENSOR TRIGGER");
-        tlHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
-        tlHeader.setForeground(TEXT_MAIN);
+        // Under-Video Scrubber & Time Bar
+        JPanel videoControlBar = new JPanel(new BorderLayout(8, 6));
+        videoControlBar.setOpaque(false);
 
-        timeDisplayLbl = new JLabel("00:00.00 / 00:06.00");
-        timeDisplayLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 20));
-        timeDisplayLbl.setForeground(ACCENT_AMBER);
+        timelineSlider = new JSlider(0, (int) (VIDEO_DURATION_SEC * 1000), 0);
+        timelineSlider.setBackground(CARD_BG);
+        timelineSlider.setForeground(ACCENT_CYAN);
+        timelineSlider.setFocusable(false);
+        timelineSlider.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                seekFromSlider();
+            }
+        });
+        timelineSlider.addChangeListener(e -> {
+            if (timelineSlider.getValueIsAdjusting()) {
+                seekFromSlider();
+            }
+        });
 
-        tlTopRow.add(tlHeader, BorderLayout.WEST);
-        tlTopRow.add(timeDisplayLbl, BorderLayout.EAST);
-
-        // Progress Bar
-        timelineProgressBar = new JProgressBar(0, (int) (VIDEO_DURATION_SEC * 1000));
-        timelineProgressBar.setValue(0);
-        timelineProgressBar.setPreferredSize(new Dimension(0, 20));
-        timelineProgressBar.setBackground(new Color(30, 36, 46));
-        timelineProgressBar.setForeground(ACCENT_CYAN);
-        timelineProgressBar.setBorder(new LineBorder(BORDER_COLOR, 1, true));
-
-        // Event markers note
-        JPanel markerNoteRow = new JPanel(new BorderLayout());
-        markerNoteRow.setOpaque(false);
-        JLabel markerLbl = new JLabel("▲ 0.0s: Nobita in Room (Presence Active)           ★ 3.0s: Bamboo-Copter Exit! (Cut Sensors)           ▲ 6.0s: Video End");
-        markerLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
-        markerLbl.setForeground(new Color(110, 120, 135));
-        markerNoteRow.add(markerLbl, BorderLayout.WEST);
-
-        // Action Buttons Row
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        btnRow.setOpaque(false);
+        JPanel transportBtnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        transportBtnRow.setOpaque(false);
 
         playBtn = createStyledButton("▶ PLAY VIDEO & SYNC", ACCENT_GREEN);
         playBtn.addActionListener(e -> togglePlay());
 
-        restartBtn = createStyledButton("↺ RESTART (t=0s)", new Color(75, 85, 99));
+        restartBtn = createStyledButton("↺ RESTART", new Color(75, 85, 99));
         restartBtn.addActionListener(e -> restartTimeline());
 
+        timeDisplayLbl = new JLabel("00:00.00 / 00:06.00");
+        timeDisplayLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
+        timeDisplayLbl.setForeground(ACCENT_AMBER);
+
+        transportBtnRow.add(playBtn);
+        transportBtnRow.add(restartBtn);
+        transportBtnRow.add(Box.createHorizontalStrut(10));
+        transportBtnRow.add(timeDisplayLbl);
+
+        videoControlBar.add(timelineSlider, BorderLayout.NORTH);
+        videoControlBar.add(transportBtnRow, BorderLayout.SOUTH);
+        leftVideoCard.add(videoControlBar, BorderLayout.SOUTH);
+
+        mainContent.add(leftVideoCard, BorderLayout.CENTER);
+
+        // RIGHT SIDE: CPS Telemetry HUD & Live Event Log
+        JPanel rightPanel = new JPanel(new BorderLayout(12, 12));
+        rightPanel.setOpaque(false);
+        rightPanel.setPreferredSize(new Dimension(480, 0));
+
+        // Upper: Cyber-Physical Status Metrics
+        JPanel telemetryCard = new JPanel(new BorderLayout(10, 10));
+        telemetryCard.setBackground(CARD_BG);
+        telemetryCard.setBorder(new CompoundBorder(
+            new LineBorder(BORDER_COLOR, 1, true),
+            new EmptyBorder(12, 14, 12, 14)
+        ));
+
+        JLabel telemTitle = new JLabel("CPS REAL-TIME TELEMETRY HUD (PORT 9090)");
+        telemTitle.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        telemTitle.setForeground(TEXT_MAIN);
+        telemetryCard.add(telemTitle, BorderLayout.NORTH);
+
+        JPanel metricsGrid = new JPanel(new GridLayout(2, 2, 10, 10));
+        metricsGrid.setOpaque(false);
+        roomStateCard = createMetricCard("ROOM STATE", "VACANT", ACCENT_AMBER, metricsGrid);
+        pirCard       = createMetricCard("PIR SENSOR (GPIO_12)", "0.0 V [LOW]", TEXT_MUTED, metricsGrid);
+        radarCard     = createMetricCard("RADAR CONF (GPIO_27)", "0.0% (0.00V)", TEXT_MUTED, metricsGrid);
+        hystCard      = createMetricCard("HYSTERESIS REMAIN", "0 s", ACCENT_CYAN, metricsGrid);
+        telemetryCard.add(metricsGrid, BorderLayout.CENTER);
+
+        // Manual Injection Buttons
+        JPanel manualBtnRow = new JPanel(new GridLayout(1, 2, 8, 0));
+        manualBtnRow.setOpaque(false);
         sendOccupiedBtn = createStyledButton("FORCE OCCUPIED", new Color(37, 99, 235));
         sendOccupiedBtn.addActionListener(e -> injectOccupiedStimulus("Manual Trigger"));
 
         sendDepartedBtn = createStyledButton("TRIGGER 3.0s EXIT", ACCENT_RED);
         sendDepartedBtn.addActionListener(e -> injectDepartureStimulus("Manual Trigger"));
+        manualBtnRow.add(sendOccupiedBtn);
+        manualBtnRow.add(sendDepartedBtn);
+        telemetryCard.add(manualBtnRow, BorderLayout.SOUTH);
 
-        btnRow.add(playBtn);
-        btnRow.add(restartBtn);
-        btnRow.add(sendOccupiedBtn);
-        btnRow.add(sendDepartedBtn);
+        rightPanel.add(telemetryCard, BorderLayout.NORTH);
 
-        JPanel tlContent = new JPanel();
-        tlContent.setLayout(new BoxLayout(tlContent, BoxLayout.Y_AXIS));
-        tlContent.setOpaque(false);
-        tlContent.add(tlTopRow);
-        tlContent.add(Box.createVerticalStrut(10));
-        tlContent.add(timelineProgressBar);
-        tlContent.add(Box.createVerticalStrut(4));
-        tlContent.add(markerNoteRow);
-        tlContent.add(Box.createVerticalStrut(12));
-        tlContent.add(btnRow);
-
-        timelineCard.add(tlContent, BorderLayout.CENTER);
-
-        // Section B: Live Telemetry Status Cards (From Port 9090)
-        JPanel telemGrid = new JPanel(new GridLayout(1, 4, 10, 0));
-        telemGrid.setOpaque(false);
-
-        roomStateCard = createMetricCard("ROOM STATE", "VACANT", ACCENT_AMBER, telemGrid);
-        pirCard       = createMetricCard("PIR SENSOR (GPIO_12)", "0.0 V [LOW]", TEXT_MUTED, telemGrid);
-        radarCard     = createMetricCard("RADAR CONF (GPIO_27)", "0.0% (0.00V)", TEXT_MUTED, telemGrid);
-        hystCard      = createMetricCard("HYSTERESIS REMAIN", "0 s", ACCENT_CYAN, telemGrid);
-
-        centerPanel.add(timelineCard, BorderLayout.NORTH);
-        centerPanel.add(telemGrid, BorderLayout.CENTER);
-        add(centerPanel, BorderLayout.CENTER);
-
-        // ── BOTTOM: Real-time Event Log ───────────────────────────────────────
+        // Lower: Real-time Event Log
         JPanel logCard = new JPanel(new BorderLayout(8, 8));
         logCard.setBackground(CARD_BG);
         logCard.setBorder(new CompoundBorder(
             new LineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(10, 14, 10, 14)
+            new EmptyBorder(10, 12, 10, 12)
         ));
-        logCard.setPreferredSize(new Dimension(0, 170));
 
-        JLabel logHeader = new JLabel("SYNCHRONIZATION & SENSOR EVENT LOG");
+        JLabel logHeader = new JLabel("CPS SENSOR INJECTION & TELEMETRY LOG");
         logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
         logHeader.setForeground(TEXT_MUTED);
 
@@ -280,7 +283,107 @@ public class NobitaDepartureSyncApp extends JFrame {
 
         logCard.add(logHeader, BorderLayout.NORTH);
         logCard.add(scroll, BorderLayout.CENTER);
-        add(logCard, BorderLayout.SOUTH);
+        rightPanel.add(logCard, BorderLayout.CENTER);
+
+        mainContent.add(rightPanel, BorderLayout.EAST);
+        add(mainContent, BorderLayout.CENTER);
+    }
+
+    // ─── Video Viewport Canvas ───────────────────────────────────────────────
+    private class VideoViewportPanel extends JPanel {
+        public VideoViewportPanel() {
+            setBackground(new Color(10, 13, 18));
+            setBorder(new LineBorder(BORDER_COLOR, 1, true));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            BufferedImage frame = getCurrentFrameImage();
+            if (frame != null) {
+                // Fit frame with proper aspect ratio
+                double imgAspect = (double) frame.getWidth() / frame.getHeight();
+                double panelAspect = (double) getWidth() / getHeight();
+                int drawW, drawH, drawX, drawY;
+
+                if (panelAspect > imgAspect) {
+                    drawH = getHeight();
+                    drawW = (int) (drawH * imgAspect);
+                    drawX = (getWidth() - drawW) / 2;
+                    drawY = 0;
+                } else {
+                    drawW = getWidth();
+                    drawH = (int) (drawW / imgAspect);
+                    drawX = 0;
+                    drawY = (getHeight() - drawH) / 2;
+                }
+
+                g2.drawImage(frame, drawX, drawY, drawW, drawH, null);
+
+                // Video HUD Overlay
+                g2.setColor(new Color(0, 0, 0, 140));
+                g2.fillRoundRect(drawX + 12, drawY + 12, 190, 28, 8, 8);
+                g2.setColor(currentTimelineSec < EVENT_TRIGGER_SEC ? ACCENT_GREEN : ACCENT_RED);
+                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+                String tag = currentTimelineSec < EVENT_TRIGGER_SEC ? "● NOBITA IN ROOM (t < 3s)" : "★ BAMBOO-COPTER EXIT (t ≥ 3s)";
+                g2.drawString(tag, drawX + 22, drawY + 30);
+            } else {
+                // Placeholder while loading
+                g2.setColor(TEXT_MUTED);
+                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
+                String txt = videoFrames.isEmpty() ? "Loading Video Frames from Timeline 1.mov..." : "Ready to Play";
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(txt, (getWidth() - fm.stringWidth(txt)) / 2, getHeight() / 2);
+            }
+            g2.dispose();
+        }
+
+        private BufferedImage getCurrentFrameImage() {
+            if (videoFrames.isEmpty()) return null;
+            int frameIdx = (int) (currentTimelineSec * VIDEO_FPS);
+            if (frameIdx < 0) frameIdx = 0;
+            if (frameIdx >= videoFrames.size()) frameIdx = videoFrames.size() - 1;
+            return videoFrames.get(frameIdx);
+        }
+    }
+
+    // ─── Asynchronous Video Frame Loader ─────────────────────────────────────
+    private void loadVideoFramesAsync() {
+        new Thread(() -> {
+            try {
+                File dir = new File("assets/nobita_frames");
+                if (dir.exists()) {
+                    File[] files = dir.listFiles((d, name) -> name.startsWith("frame_") && name.endsWith(".jpg"));
+                    if (files != null && files.length > 0) {
+                        java.util.Arrays.sort(files);
+                        for (File f : files) {
+                            BufferedImage img = ImageIO.read(f);
+                            if (img != null) videoFrames.add(img);
+                        }
+                    }
+                }
+
+                SwingUtilities.invokeLater(() -> {
+                    if (!videoFrames.isEmpty()) {
+                        statusVideoPill.setText("● VIDEO: " + videoFrames.size() + " FRAMES (20 FPS)");
+                        statusVideoPill.setForeground(ACCENT_GREEN);
+                        statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                        log("Successfully loaded " + videoFrames.size() + " native frames from Timeline 1.mov into in-applet memory!");
+                        videoViewport.repaint();
+                    } else {
+                        statusVideoPill.setText("● VIDEO: NO FRAMES");
+                        statusVideoPill.setForeground(ACCENT_RED);
+                        statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                    }
+                });
+            } catch (Exception ex) {
+                log("[ERR] Failed to load video frames: " + ex.getMessage());
+            }
+        }, "VideoFrameLoader").start();
     }
 
     private JLabel createMetricCard(String title, String val, Color valColor, JPanel container) {
@@ -335,81 +438,9 @@ public class NobitaDepartureSyncApp extends JFrame {
         });
     }
 
-    // ─── Video Host Subprocess Launcher ──────────────────────────────────────
-    private void launchVideoHostPlayer() {
-        new Thread(() -> {
-            try {
-                File exe = new File("VideoHost.exe");
-                File video = new File("Timeline 1.mov");
-                if (!video.exists()) {
-                    log("[ERR] Timeline 1.mov not found in project directory!");
-                    return;
-                }
-
-                Point pt = getLocationOnScreen();
-                int vx = Math.max(20, pt.x + getWidth() + 12);
-                int vy = Math.max(20, pt.y);
-
-                ProcessBuilder pb = new ProcessBuilder(
-                    exe.getAbsolutePath(),
-                    video.getAbsolutePath(),
-                    String.valueOf(vx),
-                    String.valueOf(vy),
-                    "640",
-                    "360"
-                );
-                videoProcess = pb.start();
-                videoOut = new PrintWriter(new OutputStreamWriter(videoProcess.getOutputStream()), true);
-                videoIn  = new BufferedReader(new InputStreamReader(videoProcess.getInputStream()));
-
-                String line;
-                while ((line = videoIn.readLine()) != null) {
-                    final String msg = line;
-                    if (msg.startsWith("MEDIA_OPENED")) {
-                        videoReady = true;
-                        SwingUtilities.invokeLater(() -> {
-                            statusVideoPill.setText("● VIDEO READY");
-                            statusVideoPill.setForeground(ACCENT_GREEN);
-                            statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
-                        });
-                        log("Video player loaded 'Timeline 1.mov' (1080p, 6.00s)");
-                    } else if (msg.startsWith("MEDIA_FAILED")) {
-                        log("[ERR] Video player error: " + msg);
-                    }
-                }
-            } catch (Exception ex) {
-                log("[WARN] Unable to launch VideoHost: " + ex.getMessage());
-            }
-        }, "VideoHostController").start();
-    }
-
-    private void repositionVideoWindow() {
-        if (videoOut != null && videoReady && isShowing()) {
-            try {
-                Point pt = getLocationOnScreen();
-                int vx = pt.x + getWidth() + 10;
-                int vy = pt.y;
-                videoOut.println("MOVE:" + vx + "," + vy + ",640,360");
-            } catch (Exception ignored) {}
-        }
-    }
-
-    private void sendVideoCommand(String cmd) {
-        if (videoOut != null && videoReady) {
-            videoOut.println(cmd);
-        }
-    }
-
-    private void shutdownVideoPlayer() {
-        sendVideoCommand("QUIT");
-        try {
-            if (videoProcess != null) videoProcess.destroy();
-        } catch (Exception ignored) {}
-    }
-
     // ─── Network Communications ──────────────────────────────────────────────
     private void connectSockets() {
-        // Thread 1: Port 9091 (Sensors Bus Client)
+        // Port 9091 (Sensors Bus Client)
         new Thread(() -> {
             try {
                 sensorSocket = new Socket(host, sensorPort);
@@ -441,7 +472,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             }
         }, "SensorsBusClient").start();
 
-        // Thread 2: Port 9090 (Telemetry Receiver)
+        // Port 9090 (Telemetry Receiver)
         new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 if (!telemetryConnected) {
@@ -506,9 +537,9 @@ public class NobitaDepartureSyncApp extends JFrame {
         });
     }
 
-    // ─── Playback & Stimulus Logic ───────────────────────────────────────────
+    // ─── Playback & Video Sync Loop ──────────────────────────────────────────
     private void initPlaybackTimer() {
-        // Runs at 20 Hz (50 ms tick) for smooth video sync and progress bar
+        // 50ms tick (20 FPS) perfectly matches video frame rate
         playbackTimer = new javax.swing.Timer(50, e -> {
             if (!isPlaying) return;
 
@@ -518,27 +549,36 @@ public class NobitaDepartureSyncApp extends JFrame {
                 isPlaying = false;
                 playBtn.setText("▶ PLAY VIDEO & SYNC");
                 playBtn.setBackground(ACCENT_GREEN);
-                sendVideoCommand("PAUSE");
                 log("Video playback and timeline completed (6.00s).");
             }
 
-            // Check for event trigger at exactly 3.0s (Bamboo-copter departure)
+            // Frame-accurate event trigger at t = 3.0s
             if (currentTimelineSec >= EVENT_TRIGGER_SEC && !eventDispatched) {
                 eventDispatched = true;
-                injectDepartureStimulus("Bamboo-Copter Exit (t = 3.0s in Timeline 1.mov)");
+                injectDepartureStimulus("Bamboo-Copter Window Exit (t = 3.0s in Timeline 1.mov)");
             }
 
             updateTimelineDisplay();
+            videoViewport.repaint();
         });
     }
 
     private void updateTimelineDisplay() {
         int millis = (int) (currentTimelineSec * 1000);
-        timelineProgressBar.setValue(millis);
+        timelineSlider.setValue(millis);
 
         int sec = (int) currentTimelineSec;
         int cs  = (int) ((currentTimelineSec - sec) * 100);
         timeDisplayLbl.setText(String.format(Locale.US, "00:%02d.%02d / 00:06.00", sec, cs));
+    }
+
+    private void seekFromSlider() {
+        currentTimelineSec = timelineSlider.getValue() / 1000.0;
+        if (currentTimelineSec < EVENT_TRIGGER_SEC) {
+            eventDispatched = false;
+        }
+        updateTimelineDisplay();
+        videoViewport.repaint();
     }
 
     private void togglePlay() {
@@ -550,9 +590,6 @@ public class NobitaDepartureSyncApp extends JFrame {
             playBtn.setText("⏸ PAUSE VIDEO");
             playBtn.setBackground(ACCENT_AMBER);
             playbackTimer.start();
-
-            sendVideoCommand("SEEK:" + String.format(Locale.US, "%.2f", currentTimelineSec));
-            sendVideoCommand("PLAY");
             log("Started video and CPS simulation sync playback...");
 
             if (currentTimelineSec < EVENT_TRIGGER_SEC) {
@@ -563,7 +600,6 @@ public class NobitaDepartureSyncApp extends JFrame {
             playBtn.setText("▶ RESUME VIDEO");
             playBtn.setBackground(ACCENT_GREEN);
             playbackTimer.stop();
-            sendVideoCommand("PAUSE");
             log("Paused video at " + String.format(Locale.US, "%.2fs", currentTimelineSec));
         }
     }
@@ -576,9 +612,8 @@ public class NobitaDepartureSyncApp extends JFrame {
         playBtn.setText("▶ PLAY VIDEO & SYNC");
         playBtn.setBackground(ACCENT_GREEN);
 
-        sendVideoCommand("STOP");
-        sendVideoCommand("SEEK:0");
         updateTimelineDisplay();
+        videoViewport.repaint();
         log("Reset video and timeline to 00:00.00.");
 
         injectOccupiedStimulus("Reset to t=0 (Nobita in Room)");
