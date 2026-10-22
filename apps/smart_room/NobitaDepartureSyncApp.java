@@ -17,39 +17,50 @@ import java.util.List;
  * ==============================================================================
  * Cyber-Physical Embedded Video Player & Multi-Scenario Simulation Synchronizer.
  *
- * Integrated Scenarios:
- * 1. Scenario 1: Nobita Departure via Bamboo Copter (Timeline 1.mov)
- *    - Duration: 6.00s | Exit Trigger: t = 3.00s
+ * Integrated Scenarios (All 4 Video Feeds):
+ * 1. 🚪 Scenario 1: Nobita Departure via Bamboo Copter (Timeline 1.mov)
+ *    - 6.00s | 20 FPS (120 frames) | Window exit cut at t = 3.00s
  *    - t < 3.0s: PIR = 3.3V, mmWave = 2.80V (OCCUPIED)
- *    - t >= 3.0s: PIR = 0.0V, mmWave = 0.05V (DEPARTED / VACANT -> Hysteresis)
+ *    - t ≥ 3.0s: PIR = 0.0V, mmWave = 0.05V (DEPARTED / VACANT -> Hysteresis)
  *
- * 2. Scenario 2: Nobita Sleeping & Automatic Dimming (Nobita sleeping.mov)
- *    - Duration: 5.00s | Dimming/Sleep Trigger: t = 4.00s
+ * 2. 🛏️ Scenario 2: Nobita Sleeping & Dimming (Nobita sleeping.mov)
+ *    - 5.00s | 20 FPS (100 frames) | Sleep dimming cut at t = 4.00s
  *    - t < 4.0s: PIR = 3.3V, mmWave = 2.80V (OCCUPIED / AWAKE)
- *    - t >= 4.0s: PIR = 0.0V (no gross movement), mmWave = 1.95V (breathing micro-motion)
- *      -> ESP32 firmware holds SLEEP MODE, prevents false-vacant turnoff, dims main lighting!
+ *    - t ≥ 4.0s: PIR = 0.0V, mmWave = 1.95V (SLEEP MODE / Vital micro-motion)
  *
- * Features:
- * - Direct 100% Native Java In-Applet Video Canvas (60 FPS fluid rendering).
- * - Instant Scenario Dropdown Selector with live frame-switching & timeline reconfiguration.
- * - Interactive Transport Bar: Play/Pause, 1ms-scrubber, frame stepper, and restart.
- * - Cyber-Physical Buses: Port 9091 (Sensors Input) & Port 9090 (Telemetry HUD).
+ * 3. 🚶 Scenario 3: Nobita Entering Room (Nobita enters the room.mov)
+ *    - 11.00s | 15 FPS (165 frames) | Entry threshold cut at t = 6.60s
+ *    - t < 6.6s: PIR = 0.0V, mmWave = 0.05V (VACANT & DARK)
+ *    - t ≥ 6.6s: PIR = 3.3V, mmWave = 2.85V (NOBITA ENTERS -> LIGHTS ON)
+ *
+ * 4. 🚨 Scenario 4: PIR Motion Sensor Activated (PIR motion sensor activated.mp4)
+ *    - 14.00s | 15 FPS (210 frames) | Motion active from t = 2.30s to 10.30s
+ *    - t < 2.3s: PIR = 0.0V, mmWave = 0.05V (STANDBY)
+ *    - 2.3s ≤ t < 10.3s: PIR = 3.3V, mmWave = 2.90V (MOTION DETECTED / ACTIVE)
+ *    - t ≥ 10.3s: PIR = 0.0V, mmWave = 0.05V (CLEAR / IDLE)
+ *
+ * Styling:
+ * - High-contrast palette: Obsidian background (#06090E), vivid slate cards (#0F172A),
+ *   ultra-bright white text (#FFFFFF), electric neon cyan (#00E5FF), neon green (#00FF80),
+ *   vivid gold (#FFD700), coral red (#FF3366), and neon purple (#D946EF).
+ * - Full Segoe UI Emoji font typography across all UI components, buttons, and HUD badges.
  * ==============================================================================
  */
 public class NobitaDepartureSyncApp extends JFrame {
 
-    // Style & Theme Palette
-    private static final String FONT_FAMILY   = "Space Mono";
-    private static final Color BG_DARK        = new Color(13, 17, 23);
-    private static final Color CARD_BG        = new Color(22, 27, 34);
-    private static final Color BORDER_COLOR   = new Color(48, 54, 61);
-    private static final Color ACCENT_CYAN    = new Color(56, 189, 248);
-    private static final Color ACCENT_GREEN   = new Color(46, 204, 113);
-    private static final Color ACCENT_AMBER   = new Color(245, 158, 11);
-    private static final Color ACCENT_PURPLE  = new Color(168, 85, 247);
-    private static final Color ACCENT_RED     = new Color(239, 68, 68);
-    private static final Color TEXT_MAIN      = new Color(240, 246, 252);
-    private static final Color TEXT_MUTED     = new Color(139, 148, 158);
+    // High Contrast Typography & Palette
+    private static final String FONT_FAMILY   = "Segoe UI Emoji";
+    private static final Color BG_DARK        = new Color(6, 9, 14);       // Pitch Obsidian
+    private static final Color CARD_BG        = new Color(15, 23, 42);     // Deep Slate Card
+    private static final Color BORDER_COLOR   = new Color(51, 65, 85);     // High-Contrast Slate Border
+    private static final Color BORDER_BRIGHT  = new Color(96, 165, 250);    // Vibrant Border Accent
+    private static final Color ACCENT_CYAN    = new Color(0, 229, 255);    // Electric Cyan
+    private static final Color ACCENT_GREEN   = new Color(0, 255, 128);    // Neon Green
+    private static final Color ACCENT_GOLD    = new Color(255, 215, 0);    // Vivid Gold / Amber
+    private static final Color ACCENT_PURPLE  = new Color(217, 70, 239);   // Neon Purple
+    private static final Color ACCENT_RED     = new Color(255, 51, 102);   // Coral Red
+    private static final Color TEXT_WHITE     = new Color(255, 255, 255);  // Pure Crisp White
+    private static final Color TEXT_MUTED     = new Color(226, 232, 240);  // High Contrast Light Slate
 
     // Network & Target Configuration
     private final String host;
@@ -69,44 +80,83 @@ public class NobitaDepartureSyncApp extends JFrame {
     // ─── Scenario Definitions ────────────────────────────────────────────────
     public enum Scenario {
         DEPARTURE(
-            "🚪 Scenario 1: Nobita Departure (Timeline 1.mov — Exit at 3.0s)",
+            "🚪 1. Nobita Departure (Timeline 1.mov — Exit at 3.0s)",
             "Timeline 1.mov",
             "assets/nobita_frames",
-            6.0,
-            3.0,
-            "● NOBITA IN ROOM (t < 3s)",
-            "★ BAMBOO-COPTER EXIT (t ≥ 3s)",
-            "TRIGGER 3.0s EXIT"
+            6.00,
+            20,
+            3.00,
+            100.0, // No second trigger
+            "● 🚪 NOBITA IN ROOM (t < 3.0s)",
+            "★ 🚁 BAMBOO-COPTER EXIT (t ≥ 3.0s)",
+            "",
+            "🚁 TRIGGER 3.0s EXIT"
         ),
         SLEEPING(
-            "🛏️ Scenario 2: Nobita Sleeping & Dimming (Nobita sleeping.mov — Dims at 4.0s)",
+            "🛏️ 2. Nobita Sleeping & Dimming (Nobita sleeping.mov — Dims at 4.0s)",
             "Nobita sleeping.mov",
             "assets/sleeping_frames",
-            5.0,
-            4.0,
-            "● NOBITA AWAKE / IN BED (t < 4s)",
-            "🌙 SLEEP MODE — LIGHTS DIMMED (t ≥ 4s)",
-            "TRIGGER 4.0s SLEEP"
+            5.00,
+            20,
+            4.00,
+            100.0,
+            "● 🛏️ NOBITA AWAKE / IN BED (t < 4.0s)",
+            "🌙 💤 SLEEP MODE — LIGHTS DIMMED (t ≥ 4.0s)",
+            "",
+            "🌙 TRIGGER 4.0s SLEEP"
+        ),
+        ENTERING(
+            "🚶 3. Nobita Entering Room (Nobita enters the room.mov — Entry at 6.6s)",
+            "Nobita enters the room.mov",
+            "assets/entering_frames",
+            11.00,
+            15,
+            6.60,
+            100.0,
+            "● 🌑 ROOM VACANT / DARK (t < 6.6s)",
+            "💡 🚶 NOBITA ENTERS — LIGHTS ON (t ≥ 6.6s)",
+            "",
+            "🚶 TRIGGER 6.6s ENTRY"
+        ),
+        PIR_ACTIVATED(
+            "🚨 4. PIR Sensor Activated (PIR motion sensor activated.mp4 — Motion at 2.3s)",
+            "PIR motion sensor activated.mp4",
+            "assets/pir_frames",
+            14.00,
+            15,
+            2.30,
+            10.30,
+            "● ⏳ PIR STANDBY (t < 2.3s)",
+            "🚨 ⚡ PIR MOTION DETECTED (2.3s ≤ t < 10.3s)",
+            "💤 IDLE / CLEAR (t ≥ 10.3s)",
+            "🚨 TRIGGER MOTION ACTIVE"
         );
 
         public final String displayName;
         public final String videoFileName;
         public final String framesDir;
         public final double durationSec;
+        public final int fps;
         public final double triggerSec;
+        public final double trigger2Sec;
         public final String hudBeforeTrigger;
         public final String hudAfterTrigger;
+        public final String hudAfterTrigger2;
         public final String triggerButtonLabel;
 
-        Scenario(String displayName, String videoFileName, String framesDir, double durationSec,
-                 double triggerSec, String hudBeforeTrigger, String hudAfterTrigger, String triggerButtonLabel) {
+        Scenario(String displayName, String videoFileName, String framesDir, double durationSec, int fps,
+                 double triggerSec, double trigger2Sec,
+                 String hudBeforeTrigger, String hudAfterTrigger, String hudAfterTrigger2, String triggerButtonLabel) {
             this.displayName = displayName;
             this.videoFileName = videoFileName;
             this.framesDir = framesDir;
             this.durationSec = durationSec;
+            this.fps = fps;
             this.triggerSec = triggerSec;
+            this.trigger2Sec = trigger2Sec;
             this.hudBeforeTrigger = hudBeforeTrigger;
             this.hudAfterTrigger = hudAfterTrigger;
+            this.hudAfterTrigger2 = hudAfterTrigger2;
             this.triggerButtonLabel = triggerButtonLabel;
         }
 
@@ -116,17 +166,17 @@ public class NobitaDepartureSyncApp extends JFrame {
         }
     }
 
-    private Scenario currentScenario = Scenario.SLEEPING; // Default to the newly added sleeping scenario
+    private Scenario currentScenario = Scenario.ENTERING; // Default to the newly added entering scenario
 
     // Cache of loaded frames per scenario
     private final Map<Scenario, List<BufferedImage>> scenarioFramesCache = new EnumMap<>(Scenario.class);
     private final List<BufferedImage> activeFrames = new ArrayList<>();
 
     // Timeline & Video Playback State
-    private static final int VIDEO_FPS = 20; // 20 FPS standard
     private volatile boolean isPlaying = false;
     private volatile double currentTimelineSec = 0.0;
     private boolean eventDispatched = false;
+    private boolean event2Dispatched = false;
     private javax.swing.Timer playbackTimer;
 
     // Video Viewport Component
@@ -155,7 +205,7 @@ public class NobitaDepartureSyncApp extends JFrame {
     private JTextArea logArea;
 
     public NobitaDepartureSyncApp(String host, int sensorPort, int telemetryPort) {
-        super("Nobita CPS In-App Video Player & Synchronizer — Multi-Scenario Edition");
+        super("🎬 Nobita Smart Room CPS Video Synchronizer — Multi-Scenario Suite");
         this.host = host;
         this.sensorPort = sensorPort;
         this.telemetryPort = telemetryPort;
@@ -166,8 +216,8 @@ public class NobitaDepartureSyncApp extends JFrame {
         connectSockets();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1280, 800);
-        setMinimumSize(new Dimension(1100, 700));
+        setSize(1320, 840);
+        setMinimumSize(new Dimension(1120, 720));
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG_DARK);
         setVisible(true);
@@ -178,35 +228,35 @@ public class NobitaDepartureSyncApp extends JFrame {
     }
 
     private void setupUI() {
-        setLayout(new BorderLayout(12, 12));
-        ((JPanel) getContentPane()).setBorder(new EmptyBorder(14, 16, 14, 16));
+        setLayout(new BorderLayout(14, 14));
+        ((JPanel) getContentPane()).setBorder(new EmptyBorder(16, 18, 16, 18));
 
         // ── TOP: Header Banner ────────────────────────────────────────────────
-        JPanel header = new JPanel(new BorderLayout(14, 0));
+        JPanel header = new JPanel(new BorderLayout(16, 0));
         header.setBackground(CARD_BG);
         header.setBorder(new CompoundBorder(
-            new LineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(12, 16, 12, 16)
+            new LineBorder(BORDER_BRIGHT, 2, true),
+            new EmptyBorder(14, 18, 14, 18)
         ));
 
-        JPanel titleGrp = new JPanel(new GridLayout(2, 1, 0, 3));
+        JPanel titleGrp = new JPanel(new GridLayout(2, 1, 0, 4));
         titleGrp.setOpaque(false);
         JLabel titleLbl = new JLabel("🎬 NOBITA SMART ROOM — CPS MULTI-SCENARIO SYNCHRONIZER");
-        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
+        titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
         titleLbl.setForeground(ACCENT_CYAN);
 
         subLbl = new JLabel(formatSubLabel());
-        subLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
-        subLbl.setForeground(TEXT_MUTED);
+        subLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        subLbl.setForeground(TEXT_WHITE);
         titleGrp.add(titleLbl);
         titleGrp.add(subLbl);
 
-        JPanel pillsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+        JPanel pillsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 4));
         pillsPanel.setOpaque(false);
 
-        statusVideoPill  = createPill("VIDEO: LOADING...", ACCENT_AMBER);
-        statusSensorPill = createPill("SENSORS: 9091", ACCENT_AMBER);
-        statusTelemPill  = createPill("TELEMETRY: 9090", ACCENT_AMBER);
+        statusVideoPill  = createPill("🎬 VIDEO: LOADING...", ACCENT_GOLD);
+        statusSensorPill = createPill("⚡ SENSORS: 9091", ACCENT_GOLD);
+        statusTelemPill  = createPill("📡 TELEMETRY: 9090", ACCENT_GOLD);
         pillsPanel.add(statusVideoPill);
         pillsPanel.add(statusSensorPill);
         pillsPanel.add(statusTelemPill);
@@ -220,27 +270,28 @@ public class NobitaDepartureSyncApp extends JFrame {
         mainContent.setOpaque(false);
 
         // LEFT SIDE: Scenario Chooser + Video Viewport + Transport Controls
-        JPanel leftVideoCard = new JPanel(new BorderLayout(10, 10));
+        JPanel leftVideoCard = new JPanel(new BorderLayout(12, 12));
         leftVideoCard.setBackground(CARD_BG);
         leftVideoCard.setBorder(new CompoundBorder(
             new LineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(12, 14, 12, 14)
+            new EmptyBorder(14, 16, 14, 16)
         ));
-        leftVideoCard.setPreferredSize(new Dimension(720, 0));
+        leftVideoCard.setPreferredSize(new Dimension(740, 0));
 
         // Scenario Selector Row
-        JPanel scenarioRow = new JPanel(new BorderLayout(8, 0));
+        JPanel scenarioRow = new JPanel(new BorderLayout(10, 0));
         scenarioRow.setOpaque(false);
-        JLabel scLbl = new JLabel("ACTIVE SCENARIO:");
-        scLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-        scLbl.setForeground(ACCENT_AMBER);
+        JLabel scLbl = new JLabel("🎯 ACTIVE SCENARIO:");
+        scLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
+        scLbl.setForeground(ACCENT_GOLD);
 
         scenarioSelector = new JComboBox<>(Scenario.values());
         scenarioSelector.setSelectedItem(currentScenario);
-        scenarioSelector.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-        scenarioSelector.setBackground(new Color(15, 23, 42));
-        scenarioSelector.setForeground(TEXT_MAIN);
+        scenarioSelector.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        scenarioSelector.setBackground(new Color(10, 15, 26));
+        scenarioSelector.setForeground(TEXT_WHITE);
         scenarioSelector.setFocusable(false);
+        scenarioSelector.setBorder(new LineBorder(BORDER_BRIGHT, 1, true));
         scenarioSelector.addActionListener(e -> {
             Scenario selected = (Scenario) scenarioSelector.getSelectedItem();
             if (selected != null && selected != currentScenario) {
@@ -257,7 +308,7 @@ public class NobitaDepartureSyncApp extends JFrame {
         leftVideoCard.add(videoViewport, BorderLayout.CENTER);
 
         // Under-Video Scrubber & Time Bar
-        JPanel videoControlBar = new JPanel(new BorderLayout(8, 6));
+        JPanel videoControlBar = new JPanel(new BorderLayout(10, 8));
         videoControlBar.setOpaque(false);
 
         timelineSlider = new JSlider(0, (int) (currentScenario.durationSec * 1000), 0);
@@ -276,22 +327,22 @@ public class NobitaDepartureSyncApp extends JFrame {
             }
         });
 
-        JPanel transportBtnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel transportBtnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         transportBtnRow.setOpaque(false);
 
-        playBtn = createStyledButton("▶ PLAY VIDEO & SYNC", ACCENT_GREEN);
+        playBtn = createStyledButton("▶ PLAY VIDEO & SYNC", ACCENT_GREEN, Color.BLACK);
         playBtn.addActionListener(e -> togglePlay());
 
-        restartBtn = createStyledButton("↺ RESTART", new Color(75, 85, 99));
+        restartBtn = createStyledButton("↺ RESTART", new Color(71, 85, 105), TEXT_WHITE);
         restartBtn.addActionListener(e -> restartTimeline());
 
         timeDisplayLbl = new JLabel(formatTimeString(0.0, currentScenario.durationSec));
-        timeDisplayLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
-        timeDisplayLbl.setForeground(ACCENT_AMBER);
+        timeDisplayLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
+        timeDisplayLbl.setForeground(ACCENT_GOLD);
 
         transportBtnRow.add(playBtn);
         transportBtnRow.add(restartBtn);
-        transportBtnRow.add(Box.createHorizontalStrut(10));
+        transportBtnRow.add(Box.createHorizontalStrut(14));
         transportBtnRow.add(timeDisplayLbl);
 
         videoControlBar.add(timelineSlider, BorderLayout.NORTH);
@@ -301,38 +352,38 @@ public class NobitaDepartureSyncApp extends JFrame {
         mainContent.add(leftVideoCard, BorderLayout.CENTER);
 
         // RIGHT SIDE: CPS Telemetry HUD & Live Event Log
-        JPanel rightPanel = new JPanel(new BorderLayout(12, 12));
+        JPanel rightPanel = new JPanel(new BorderLayout(14, 14));
         rightPanel.setOpaque(false);
-        rightPanel.setPreferredSize(new Dimension(500, 0));
+        rightPanel.setPreferredSize(new Dimension(520, 0));
 
         // Upper: Cyber-Physical Status Metrics
-        JPanel telemetryCard = new JPanel(new BorderLayout(10, 10));
+        JPanel telemetryCard = new JPanel(new BorderLayout(12, 12));
         telemetryCard.setBackground(CARD_BG);
         telemetryCard.setBorder(new CompoundBorder(
             new LineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(12, 14, 12, 14)
+            new EmptyBorder(14, 16, 14, 16)
         ));
 
-        JLabel telemTitle = new JLabel("CPS REAL-TIME TELEMETRY HUD (PORT 9090)");
-        telemTitle.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        telemTitle.setForeground(TEXT_MAIN);
+        JLabel telemTitle = new JLabel("⚡ CPS REAL-TIME TELEMETRY HUD (PORT 9090)");
+        telemTitle.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
+        telemTitle.setForeground(ACCENT_CYAN);
         telemetryCard.add(telemTitle, BorderLayout.NORTH);
 
-        JPanel metricsGrid = new JPanel(new GridLayout(2, 2, 10, 10));
+        JPanel metricsGrid = new JPanel(new GridLayout(2, 2, 12, 12));
         metricsGrid.setOpaque(false);
-        roomStateCard = createMetricCard("ROOM STATE", "VACANT", ACCENT_AMBER, metricsGrid);
-        pirCard       = createMetricCard("PIR SENSOR (GPIO_12)", "0.0 V [LOW]", TEXT_MUTED, metricsGrid);
-        radarCard     = createMetricCard("RADAR CONF (GPIO_27)", "0.0% (0.00V)", TEXT_MUTED, metricsGrid);
+        roomStateCard = createMetricCard("ROOM STATE", "VACANT", ACCENT_GOLD, metricsGrid);
+        pirCard       = createMetricCard("PIR SENSOR (GPIO_12)", "0.0 V [LOW]", TEXT_WHITE, metricsGrid);
+        radarCard     = createMetricCard("RADAR CONF (GPIO_27)", "0.0% (0.00V)", TEXT_WHITE, metricsGrid);
         hystCard      = createMetricCard("HYSTERESIS REMAIN", "0 s", ACCENT_CYAN, metricsGrid);
         telemetryCard.add(metricsGrid, BorderLayout.CENTER);
 
         // Manual Injection Buttons
-        JPanel manualBtnRow = new JPanel(new GridLayout(1, 2, 8, 0));
+        JPanel manualBtnRow = new JPanel(new GridLayout(1, 2, 10, 0));
         manualBtnRow.setOpaque(false);
-        sendOccupiedBtn = createStyledButton("FORCE OCCUPIED", new Color(37, 99, 235));
+        sendOccupiedBtn = createStyledButton("💡 FORCE OCCUPIED", new Color(14, 165, 233), TEXT_WHITE);
         sendOccupiedBtn.addActionListener(e -> injectOccupiedStimulus("Manual User Override"));
 
-        sendTriggerBtn = createStyledButton(currentScenario.triggerButtonLabel, ACCENT_PURPLE);
+        sendTriggerBtn = createStyledButton(currentScenario.triggerButtonLabel, ACCENT_PURPLE, TEXT_WHITE);
         sendTriggerBtn.addActionListener(e -> triggerActiveScenarioEvent("Manual User Override"));
 
         manualBtnRow.add(sendOccupiedBtn);
@@ -342,22 +393,22 @@ public class NobitaDepartureSyncApp extends JFrame {
         rightPanel.add(telemetryCard, BorderLayout.NORTH);
 
         // Lower: Real-time Event Log
-        JPanel logCard = new JPanel(new BorderLayout(8, 8));
+        JPanel logCard = new JPanel(new BorderLayout(10, 10));
         logCard.setBackground(CARD_BG);
         logCard.setBorder(new CompoundBorder(
             new LineBorder(BORDER_COLOR, 1, true),
-            new EmptyBorder(10, 12, 10, 12)
+            new EmptyBorder(12, 14, 12, 14)
         ));
 
-        JLabel logHeader = new JLabel("CPS SENSOR INJECTION & TELEMETRY LOG");
-        logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-        logHeader.setForeground(TEXT_MUTED);
+        JLabel logHeader = new JLabel("📝 SENSOR BUS & TELEMETRY STREAM LOG");
+        logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        logHeader.setForeground(TEXT_WHITE);
 
         logArea = new JTextArea();
         logArea.setEditable(false);
-        logArea.setBackground(new Color(10, 13, 18));
-        logArea.setForeground(new Color(180, 220, 200));
-        logArea.setFont(new Font("Consolas", Font.PLAIN, 11));
+        logArea.setBackground(new Color(8, 12, 20));
+        logArea.setForeground(new Color(240, 253, 244)); // Ultra crisp mint white
+        logArea.setFont(new Font("Consolas", Font.BOLD, 12));
         logArea.setCaretColor(Color.WHITE);
         JScrollPane scroll = new JScrollPane(logArea);
         scroll.setBorder(new LineBorder(BORDER_COLOR, 1));
@@ -395,6 +446,7 @@ public class NobitaDepartureSyncApp extends JFrame {
         currentScenario = newScenario;
         currentTimelineSec = 0.0;
         eventDispatched = false;
+        event2Dispatched = false;
 
         subLbl.setText(formatSubLabel());
         sendTriggerBtn.setText(currentScenario.triggerButtonLabel);
@@ -403,6 +455,7 @@ public class NobitaDepartureSyncApp extends JFrame {
         timeDisplayLbl.setText(formatTimeString(0.0, currentScenario.durationSec));
         playBtn.setText("▶ PLAY VIDEO & SYNC");
         playBtn.setBackground(ACCENT_GREEN);
+        playBtn.setForeground(Color.BLACK);
 
         // Update active frames from cache
         List<BufferedImage> frames = scenarioFramesCache.get(currentScenario);
@@ -411,17 +464,18 @@ public class NobitaDepartureSyncApp extends JFrame {
             activeFrames.addAll(frames);
             statusVideoPill.setText("● VIDEO: " + activeFrames.size() + " FRAMES (" + currentScenario.videoFileName + ")");
             statusVideoPill.setForeground(ACCENT_GREEN);
-            statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
+            statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
         } else {
             statusVideoPill.setText("● VIDEO: LOADING...");
-            statusVideoPill.setForeground(ACCENT_AMBER);
-            statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
+            statusVideoPill.setForeground(ACCENT_GOLD);
+            statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GOLD, 2, true), new EmptyBorder(4, 10, 4, 10)));
             loadScenarioFrames(currentScenario);
         }
 
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        log("Switched to active scenario: " + currentScenario.displayName);
-        log("Duration: " + currentScenario.durationSec + "s | Event Cut: t = " + currentScenario.triggerSec + "s");
+        log("Switched to scenario: " + currentScenario.displayName);
+        log("Duration: " + currentScenario.durationSec + "s | Frame Rate: " + currentScenario.fps + " FPS");
+        log("Key Stimulus Cut: t = " + currentScenario.triggerSec + "s");
         log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         videoViewport.repaint();
@@ -430,8 +484,8 @@ public class NobitaDepartureSyncApp extends JFrame {
     // ─── Video Viewport Canvas ───────────────────────────────────────────────
     private class VideoViewportPanel extends JPanel {
         public VideoViewportPanel() {
-            setBackground(new Color(10, 13, 18));
-            setBorder(new LineBorder(BORDER_COLOR, 1, true));
+            setBackground(new Color(8, 12, 20));
+            setBorder(new LineBorder(BORDER_COLOR, 2, true));
         }
 
         @Override
@@ -440,6 +494,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
             BufferedImage frame = getCurrentFrameImage();
             if (frame != null) {
@@ -463,32 +518,58 @@ public class NobitaDepartureSyncApp extends JFrame {
                 g2.drawImage(frame, drawX, drawY, drawW, drawH, null);
 
                 // Video HUD Overlay
-                boolean isBeforeCut = currentTimelineSec < currentScenario.triggerSec;
-                String tag = isBeforeCut ? currentScenario.hudBeforeTrigger : currentScenario.hudAfterTrigger;
-                Color tagColor = isBeforeCut ? ACCENT_GREEN : (currentScenario == Scenario.SLEEPING ? ACCENT_PURPLE : ACCENT_RED);
+                String tag;
+                Color tagColor;
+                if (currentScenario == Scenario.PIR_ACTIVATED) {
+                    if (currentTimelineSec < currentScenario.triggerSec) {
+                        tag = currentScenario.hudBeforeTrigger;
+                        tagColor = ACCENT_GOLD;
+                    } else if (currentTimelineSec < currentScenario.trigger2Sec) {
+                        tag = currentScenario.hudAfterTrigger;
+                        tagColor = ACCENT_GREEN;
+                    } else {
+                        tag = currentScenario.hudAfterTrigger2;
+                        tagColor = ACCENT_CYAN;
+                    }
+                } else {
+                    boolean isBeforeCut = currentTimelineSec < currentScenario.triggerSec;
+                    tag = isBeforeCut ? currentScenario.hudBeforeTrigger : currentScenario.hudAfterTrigger;
+                    if (currentScenario == Scenario.DEPARTURE) {
+                        tagColor = isBeforeCut ? ACCENT_GREEN : ACCENT_RED;
+                    } else if (currentScenario == Scenario.SLEEPING) {
+                        tagColor = isBeforeCut ? ACCENT_GREEN : ACCENT_PURPLE;
+                    } else { // ENTERING
+                        tagColor = isBeforeCut ? ACCENT_GOLD : ACCENT_GREEN;
+                    }
+                }
 
-                FontMetrics fm = g2.getFontMetrics(new Font(FONT_FAMILY, Font.BOLD, 11));
-                int tagW = fm.stringWidth(tag) + 24;
+                Font hudFont = new Font(FONT_FAMILY, Font.BOLD, 13);
+                g2.setFont(hudFont);
+                FontMetrics fm = g2.getFontMetrics(hudFont);
+                int tagW = fm.stringWidth(tag) + 26;
 
-                g2.setColor(new Color(0, 0, 0, 160));
-                g2.fillRoundRect(drawX + 12, drawY + 12, tagW, 28, 8, 8);
+                // High contrast background badge for HUD
+                g2.setColor(new Color(0, 0, 0, 225));
+                g2.fillRoundRect(drawX + 14, drawY + 14, tagW, 34, 10, 10);
                 g2.setColor(tagColor);
-                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-                g2.drawString(tag, drawX + 22, drawY + 30);
+                g2.setStroke(new BasicStroke(2.0f));
+                g2.drawRoundRect(drawX + 14, drawY + 14, tagW, 34, 10, 10);
+                g2.drawString(tag, drawX + 27, drawY + 36);
 
-                // Scenario Watermark in corner
-                String wmark = currentScenario.videoFileName + " [20 FPS]";
-                g2.setColor(new Color(0, 0, 0, 120));
-                FontMetrics wmfm = g2.getFontMetrics(new Font(FONT_FAMILY, Font.PLAIN, 10));
-                int ww = wmfm.stringWidth(wmark) + 16;
-                g2.fillRoundRect(drawX + drawW - ww - 12, drawY + 12, ww, 22, 6, 6);
-                g2.setColor(TEXT_MUTED);
-                g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 10));
-                g2.drawString(wmark, drawX + drawW - ww - 4, drawY + 27);
+                // Scenario Watermark in top right
+                String wmark = currentScenario.videoFileName + " [" + currentScenario.fps + " FPS]";
+                Font wmFont = new Font(FONT_FAMILY, Font.BOLD, 11);
+                g2.setFont(wmFont);
+                FontMetrics wmfm = g2.getFontMetrics(wmFont);
+                int ww = wmfm.stringWidth(wmark) + 20;
+                g2.setColor(new Color(0, 0, 0, 210));
+                g2.fillRoundRect(drawX + drawW - ww - 14, drawY + 14, ww, 26, 8, 8);
+                g2.setColor(TEXT_WHITE);
+                g2.drawString(wmark, drawX + drawW - ww - 4, drawY + 31);
             } else {
                 // Placeholder while loading
-                g2.setColor(TEXT_MUTED);
-                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
+                g2.setColor(TEXT_WHITE);
+                g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
                 String txt = activeFrames.isEmpty() ? "Loading Video Frames from " + currentScenario.videoFileName + "..." : "Ready to Play";
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(txt, (getWidth() - fm.stringWidth(txt)) / 2, getHeight() / 2);
@@ -498,7 +579,7 @@ public class NobitaDepartureSyncApp extends JFrame {
 
         private BufferedImage getCurrentFrameImage() {
             if (activeFrames.isEmpty()) return null;
-            int frameIdx = (int) (currentTimelineSec * VIDEO_FPS);
+            int frameIdx = (int) (currentTimelineSec * currentScenario.fps);
             if (frameIdx < 0) frameIdx = 0;
             if (frameIdx >= activeFrames.size()) frameIdx = activeFrames.size() - 1;
             return activeFrames.get(frameIdx);
@@ -519,8 +600,8 @@ public class NobitaDepartureSyncApp extends JFrame {
                     activeFrames.addAll(frames);
                     statusVideoPill.setText("● VIDEO: " + activeFrames.size() + " FRAMES (READY)");
                     statusVideoPill.setForeground(ACCENT_GREEN);
-                    statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
-                    log("Active video frames loaded: " + activeFrames.size() + " frames for " + currentScenario.videoFileName);
+                    statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
+                    log("All 4 scenario feeds loaded! Active: " + activeFrames.size() + " frames (" + currentScenario.videoFileName + ")");
                     videoViewport.repaint();
                 }
             });
@@ -557,11 +638,11 @@ public class NobitaDepartureSyncApp extends JFrame {
         ));
 
         JLabel tLbl = new JLabel(title);
-        tLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 10));
+        tLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
         tLbl.setForeground(TEXT_MUTED);
 
         JLabel vLbl = new JLabel(val);
-        vLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
+        vLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 17));
         vLbl.setForeground(valColor);
 
         card.add(tLbl);
@@ -572,22 +653,22 @@ public class NobitaDepartureSyncApp extends JFrame {
 
     private JLabel createPill(String text, Color color) {
         JLabel l = new JLabel(text);
-        l.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+        l.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         l.setForeground(color);
         l.setBorder(new CompoundBorder(
-            new LineBorder(color, 1, true),
-            new EmptyBorder(3, 8, 3, 8)
+            new LineBorder(color, 2, true),
+            new EmptyBorder(4, 10, 4, 10)
         ));
         return l;
     }
 
-    private JButton createStyledButton(String text, Color bg) {
+    private JButton createStyledButton(String text, Color bg, Color fg) {
         JButton b = new JButton(text);
-        b.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-        b.setForeground(Color.WHITE);
+        b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        b.setForeground(fg);
         b.setBackground(bg);
         b.setFocusPainted(false);
-        b.setBorder(new EmptyBorder(9, 16, 9, 16));
+        b.setBorder(new CompoundBorder(new LineBorder(bg.brighter(), 1, true), new EmptyBorder(10, 16, 10, 16)));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
     }
@@ -613,7 +694,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                 SwingUtilities.invokeLater(() -> {
                     statusSensorPill.setText("● SENSORS: 9091");
                     statusSensorPill.setForeground(ACCENT_GREEN);
-                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
                 });
                 log("Connected to Physical Sensor Bus on " + host + ":" + sensorPort);
 
@@ -628,7 +709,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                 SwingUtilities.invokeLater(() -> {
                     statusSensorPill.setText("● SENSORS: OFF (" + sensorPort + ")");
                     statusSensorPill.setForeground(ACCENT_RED);
-                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
                 });
                 log("[WARN] Sensor Bus not open yet on " + host + ":" + sensorPort + " (" + ex.getMessage() + ")");
             }
@@ -645,7 +726,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                         SwingUtilities.invokeLater(() -> {
                             statusTelemPill.setText("● TELEMETRY: 9090");
                             statusTelemPill.setForeground(ACCENT_GREEN);
-                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
                         });
                         log("Connected to MCU Wi-Fi Telemetry Stream on " + host + ":" + telemetryPort);
                     } catch (Exception e) {
@@ -653,7 +734,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                         SwingUtilities.invokeLater(() -> {
                             statusTelemPill.setText("● TELEMETRY: OFF (" + telemetryPort + ")");
                             statusTelemPill.setForeground(ACCENT_RED);
-                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
                         });
                         try { Thread.sleep(2000); } catch (InterruptedException ie) { break; }
                         continue;
@@ -685,8 +766,8 @@ public class NobitaDepartureSyncApp extends JFrame {
             if (!st.isEmpty()) {
                 roomStateCard.setText(st);
                 if (st.equalsIgnoreCase("OCCUPIED") || st.equalsIgnoreCase("SLEEP")) roomStateCard.setForeground(ACCENT_GREEN);
-                else if (st.equalsIgnoreCase("HYSTERESIS")) roomStateCard.setForeground(ACCENT_AMBER);
-                else roomStateCard.setForeground(TEXT_MUTED);
+                else if (st.equalsIgnoreCase("HYSTERESIS")) roomStateCard.setForeground(ACCENT_GOLD);
+                else roomStateCard.setForeground(TEXT_WHITE);
             }
             pirCard.setText(pir ? "3.3 V [HIGH]" : "0.0 V [LOW]");
             pirCard.setForeground(pir ? ACCENT_GREEN : TEXT_MUTED);
@@ -695,29 +776,36 @@ public class NobitaDepartureSyncApp extends JFrame {
             radarCard.setForeground(radPct > 35 ? ACCENT_GREEN : TEXT_MUTED);
 
             hystCard.setText(hyst + " s");
-            hystCard.setForeground(hyst > 0 ? ACCENT_AMBER : TEXT_MUTED);
+            hystCard.setForeground(hyst > 0 ? ACCENT_GOLD : TEXT_MUTED);
         });
     }
 
     // ─── Playback & Video Sync Loop ──────────────────────────────────────────
     private void initPlaybackTimer() {
-        // 50ms tick (20 FPS) perfectly matches video frame rate
-        playbackTimer = new javax.swing.Timer(50, e -> {
+        // High fluid tick rate (40ms = 25 FPS update rate)
+        playbackTimer = new javax.swing.Timer(40, e -> {
             if (!isPlaying) return;
 
-            currentTimelineSec += 0.050;
+            currentTimelineSec += 0.040;
             if (currentTimelineSec >= currentScenario.durationSec) {
                 currentTimelineSec = currentScenario.durationSec;
                 isPlaying = false;
                 playBtn.setText("▶ PLAY VIDEO & SYNC");
                 playBtn.setBackground(ACCENT_GREEN);
-                log("Video playback and timeline completed (" + String.format(Locale.US, "%.2fs", currentScenario.durationSec) + ").");
+                playBtn.setForeground(Color.BLACK);
+                log("Video playback completed (" + String.format(Locale.US, "%.2fs", currentScenario.durationSec) + ").");
             }
 
-            // Frame-accurate event trigger
+            // Frame-accurate primary trigger
             if (currentTimelineSec >= currentScenario.triggerSec && !eventDispatched) {
                 eventDispatched = true;
                 triggerActiveScenarioEvent("Synchronized at t = " + currentScenario.triggerSec + "s in " + currentScenario.videoFileName);
+            }
+
+            // Secondary trigger (for 2-phase scenarios like PIR motion end)
+            if (currentTimelineSec >= currentScenario.trigger2Sec && !event2Dispatched) {
+                event2Dispatched = true;
+                triggerSecondaryEvent("Secondary event at t = " + currentScenario.trigger2Sec + "s in " + currentScenario.videoFileName);
             }
 
             updateTimelineDisplay();
@@ -736,6 +824,9 @@ public class NobitaDepartureSyncApp extends JFrame {
         if (currentTimelineSec < currentScenario.triggerSec) {
             eventDispatched = false;
         }
+        if (currentTimelineSec < currentScenario.trigger2Sec) {
+            event2Dispatched = false;
+        }
         updateTimelineDisplay();
         videoViewport.repaint();
     }
@@ -747,17 +838,20 @@ public class NobitaDepartureSyncApp extends JFrame {
             }
             isPlaying = true;
             playBtn.setText("⏸ PAUSE VIDEO");
-            playBtn.setBackground(ACCENT_AMBER);
+            playBtn.setBackground(ACCENT_GOLD);
+            playBtn.setForeground(Color.BLACK);
             playbackTimer.start();
-            log("Started video and CPS simulation sync playback (" + currentScenario.videoFileName + ")...");
+            log("Started synchronized playback (" + currentScenario.videoFileName + ")...");
 
+            // Apply pre-trigger baseline stimulus
             if (currentTimelineSec < currentScenario.triggerSec) {
-                injectOccupiedStimulus("Video Start (Active Presence in Room)");
+                applyBaselineStimulus();
             }
         } else {
             isPlaying = false;
             playBtn.setText("▶ RESUME VIDEO");
             playBtn.setBackground(ACCENT_GREEN);
+            playBtn.setForeground(Color.BLACK);
             playbackTimer.stop();
             log("Paused video at " + String.format(Locale.US, "%.2fs", currentTimelineSec));
         }
@@ -768,53 +862,109 @@ public class NobitaDepartureSyncApp extends JFrame {
         playbackTimer.stop();
         currentTimelineSec = 0.0;
         eventDispatched = false;
+        event2Dispatched = false;
         playBtn.setText("▶ PLAY VIDEO & SYNC");
         playBtn.setBackground(ACCENT_GREEN);
+        playBtn.setForeground(Color.BLACK);
 
         updateTimelineDisplay();
         videoViewport.repaint();
         log("Reset video and timeline to 00:00.00.");
 
-        injectOccupiedStimulus("Reset to t=0 (Nobita in Room)");
+        applyBaselineStimulus();
+    }
+
+    private void applyBaselineStimulus() {
+        switch (currentScenario) {
+            case DEPARTURE:
+            case SLEEPING:
+                injectOccupiedStimulus("Video Start (Active Presence in Room)");
+                break;
+            case ENTERING:
+            case PIR_ACTIVATED:
+                injectVacantStimulus("Video Start (Room Vacant / Standby)");
+                break;
+        }
     }
 
     // ─── Scenario-Aware Physical Stimuli ─────────────────────────────────────
     public void injectOccupiedStimulus(String reason) {
-        log("▶ [STIMULUS] OCCUPIED applied: " + reason);
-        log("  → Driving PIR DATA = 3.30V [HIGH]");
-        log("  → Driving MillimeterWaveRadar = 2.80V [HIGH CONFIDENCE]");
+        log("💡 [STIMULUS] OCCUPIED applied: " + reason);
+        log("  → PIR DATA = 3.30V [HIGH]");
+        log("  → MillimeterWaveRadar = 2.80V [HIGH OCCUPANCY]");
         sendSensorPin("PIR_MotionSensor", "DATA", 3.3);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 2.80);
     }
 
+    public void injectVacantStimulus(String reason) {
+        log("🌑 [STIMULUS] VACANT applied: " + reason);
+        log("  → PIR DATA = 0.00V [LOW]");
+        log("  → MillimeterWaveRadar = 0.05V [NO MOTION]");
+        sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
+        sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 0.05);
+    }
+
     public void triggerActiveScenarioEvent(String reason) {
-        if (currentScenario == Scenario.DEPARTURE) {
-            injectDepartureStimulus(reason);
-        } else if (currentScenario == Scenario.SLEEPING) {
-            injectSleepModeStimulus(reason);
+        switch (currentScenario) {
+            case DEPARTURE:
+                injectDepartureStimulus(reason);
+                break;
+            case SLEEPING:
+                injectSleepModeStimulus(reason);
+                break;
+            case ENTERING:
+                injectEntryStimulus(reason);
+                break;
+            case PIR_ACTIVATED:
+                injectPirMotionDetected(reason);
+                break;
+        }
+    }
+
+    public void triggerSecondaryEvent(String reason) {
+        if (currentScenario == Scenario.PIR_ACTIVATED) {
+            log("💤 [EVENT] PIR MOTION CEASED: " + reason);
+            log("  → PIR DATA = 0.00V [LOW]");
+            log("  → Radar = 0.05V [IDLE]");
+            sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
+            sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 0.05);
         }
     }
 
     public void injectDepartureStimulus(String reason) {
-        log("★ [EVENT] NOBITA BAMBOO-COPTER DEPARTURE: " + reason);
-        log("  → Driving PIR DATA = 0.0V (Nobita has flown out the window)");
-        log("  → Driving MillimeterWaveRadar = 0.05V (Micro-motion lost)");
-        log("  → Sensed by ESP32 MCU on GPIO_12 and GPIO_27");
-        log("  → Entering HYSTERESIS / VACANT mode!");
-
+        log("🚁 [EVENT] NOBITA BAMBOO-COPTER DEPARTURE: " + reason);
+        log("  → PIR DATA = 0.0V (Nobita has flown out the window)");
+        log("  → Radar = 0.05V (Micro-motion lost)");
         sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 0.05);
     }
 
     public void injectSleepModeStimulus(String reason) {
         log("🌙 [EVENT] NOBITA SLEEP & DIMMING MODE: " + reason);
-        log("  → Nobita settles to sleep at t = 4.0s (Main lighting dims away)");
-        log("  → Driving PIR DATA = 0.0V (No gross body movement across passive IR)");
-        log("  → Driving MillimeterWaveRadar = 1.95V (60 GHz Radar detects respiration micro-motion)");
-        log("  → Sensed by ESP32 MCU: Holds OCCUPIED / SLEEP mode; prevents false-vacant shutoff!");
-
+        log("  → Nobita asleep (t = 4.0s) -> Room lights dim down");
+        log("  → PIR DATA = 0.0V (No gross body movement)");
+        log("  → MillimeterWaveRadar = 1.95V (Vital respiration micro-movement)");
         sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 1.95);
+    }
+
+    public void injectEntryStimulus(String reason) {
+        log("🚶 [EVENT] NOBITA ROOM ENTRY: " + reason);
+        log("  → Nobita opens door and crosses threshold at t = 6.6s!");
+        log("  → PIR DATA = 3.30V [HIGH MOTION]");
+        log("  → MillimeterWaveRadar = 2.85V [PRESENCE ACTIVE]");
+        log("  → ESP32 triggers Smart Lighting ON!");
+        sendSensorPin("PIR_MotionSensor", "DATA", 3.3);
+        sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 2.85);
+    }
+
+    public void injectPirMotionDetected(String reason) {
+        log("🚨 [EVENT] PIR MOTION SENSOR TRIGGERED: " + reason);
+        log("  → Motion detected in optical Fresnel zone at t = 2.3s!");
+        log("  → PIR DATA = 3.30V [HIGH]");
+        log("  → MillimeterWaveRadar = 2.90V [RADAR CONFIRMED]");
+        sendSensorPin("PIR_MotionSensor", "DATA", 3.3);
+        sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 2.90);
     }
 
     private void sendSensorPin(String board, String pin, double voltage) {
