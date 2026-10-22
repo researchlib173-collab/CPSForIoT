@@ -6,8 +6,9 @@ if "%HOST%"=="" set HOST=localhost
 if "%S_PORT%"=="" set S_PORT=9091
 if "%T_PORT%"=="" set T_PORT=9090
 echo ==============================================================
-echo   STARTING NOBITA DEPARTURE CPS VIDEO SYNC APP
-echo   Video Target: Timeline 1.mov (Exit Trigger at t = 3.0s)
+echo   STARTING NOBITA CPS VIDEO & SIMULATION SYNCHRONIZER
+echo   Scenario 1: Departure via Bamboo Copter (Timeline 1.mov, 3.0s cut)
+echo   Scenario 2: Sleeping & Light Dimming (Nobita sleeping.mov, 4.0s cut)
 echo   Sensors Bus: %HOST%:%S_PORT%
 echo   Telemetry Bus: %HOST%:%T_PORT%
 echo ==============================================================
