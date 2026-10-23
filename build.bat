@@ -8,7 +8,7 @@ echo ============================================
 if not exist "out" mkdir out
 
 echo [1/2] Compiling all sources...
-javac -d out src\*.java
+javac -d out src\*.java apps\smart_room\NobitaDepartureSyncApp.java apps\smart_room\SmartRoomBenchApp.java
 
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Compilation failed.
@@ -22,6 +22,7 @@ echo  -- SMART ROOM WORKSPACE --
 echo  1. Run the CLI simulation engine :  run_cli.bat
 echo  2. Run the Sensor Input Applet   :  run_input.bat
 echo  3. Run the Room Dashboard Applet :  run_dashboard.bat
+echo  4. Run Realistic Room Simulator  :  run_smart_room_bench.bat
 echo.
 echo  -- THERMAL BENCH WORKSPACE --
 echo  4. Run Bench Input Stimulator    :  run_bench_input.bat
