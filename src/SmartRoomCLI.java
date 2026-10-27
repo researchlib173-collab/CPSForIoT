@@ -27,9 +27,10 @@ public class SmartRoomCLI {
     // Port 9091 (Sensors):   All physical sensor stimuli & netlist inputs
     // Port 9092 (Actuators): All physical actuator states & control
     // ========================================================================
-    public static CpsDomain.PhysicalTerminalBusBridge sensorBridge   = null; // PORT 9091
-    public static CpsDomain.PhysicalTerminalBusBridge actuatorBridge = null; // PORT 9092
-    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null; // Legacy alias to sensorBridge
+    public static CpsDomain.PhysicalTerminalBusBridge sensorBridge   = null;
+    public static CpsDomain.PhysicalTerminalBusBridge actuatorBridge = null;
+    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null;
+    public static CpsDomain.ExternalAppletBridge      telemetryBridge = null;
 
     private static volatile boolean isRunning   = false;
     private static final ScheduledExecutorService scheduler =
@@ -38,6 +39,10 @@ public class SmartRoomCLI {
     // ─── Entry point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
         workspaces.put("default", new LinkedHashMap<>());
+
+        // Instantly host all 3 ports at random ephemeral numbers without any prefixed values
+        openPorts(0, 0, 0);
+
         Scanner sc = new Scanner(System.in);
         printBanner();
         while (true) {
@@ -989,14 +994,13 @@ public class SmartRoomCLI {
         actuatorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(aPort, boards(), wires);
         actuatorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
 
-        CpsDomain.Board mcu = boards().get("RoomMasterMCU");
-        if (mcu == null && !boards().isEmpty()) {
-            for (CpsDomain.Board b : boards().values()) {
-                if (b.getFlashedFirmware() != null) { mcu = b; break; }
+        telemetryBridge = CpsDomain.ExternalAppletBridge.getOrCreate(tPort, "RadioTelemetry");
+
+        for (CpsDomain.Board b : boards().values()) {
+            if (b.radioBridge == null) {
+                b.radioBridge = telemetryBridge;
+                b.socketBridge = telemetryBridge;
             }
-        }
-        if (mcu != null) {
-            mcu.enableRadioBridge(tPort);
         }
         printActivePorts();
     }
@@ -1004,18 +1008,22 @@ public class SmartRoomCLI {
     public static void printActivePorts() {
         int s = (sensorBridge != null) ? sensorBridge.getPort() : -1;
         int a = (actuatorBridge != null) ? actuatorBridge.getPort() : -1;
-        int t = -1;
-        for (CpsDomain.Board b : boards().values()) {
-            if (b.radioBridge != null) { t = b.radioBridge.getPort(); break; }
+        int t = (telemetryBridge != null) ? telemetryBridge.getPort() : -1;
+        if (t <= 0) {
+            for (CpsDomain.Board b : boards().values()) {
+                if (b.radioBridge != null) { t = b.radioBridge.getPort(); break; }
+            }
         }
         System.out.println("╔══════════════════════════════════════════════════════════════════════════════╗");
-        System.out.println("║                     WORKSPACE NETWORK PORTS CONFIGURATION                    ║");
+        System.out.println("║            ⚡ CYBER-PHYSICAL PORTS INSTANTLY HOSTED (RANDOM)                 ║");
         System.out.println("╠══════════════════════════════════════════════════════════════════════════════╣");
-        System.out.printf("║  ⚡ SENSORS BUS PORT (Input):       %-40s ║%n", (s > 0 ? String.valueOf(s) : "NOT OPEN"));
-        System.out.printf("║  📡 TELEMETRY STREAM (Monitor):     %-40s ║%n", (t > 0 ? String.valueOf(t) : "NOT OPEN"));
-        System.out.printf("║  💡 ACTUATOR BUS PORT (Outputs):     %-40s ║%n", (a > 0 ? String.valueOf(a) : "NOT OPEN"));
+        System.out.printf("║  📡 TELEMETRY STREAM PORT  : %-46s ║%n", (t > 0 ? String.valueOf(t) : "ALLOCATING..."));
+        System.out.printf("║  ⚡ SENSORS BUS PORT        : %-46s ║%n", (s > 0 ? String.valueOf(s) : "ALLOCATING..."));
+        System.out.printf("║  💡 ACTUATOR BUS PORT       : %-46s ║%n", (a > 0 ? String.valueOf(a) : "ALLOCATING..."));
         System.out.println("╠══════════════════════════════════════════════════════════════════════════════╣");
-        System.out.println("║  * When launching apps, input these exact port numbers into the app!        ║");
+        System.out.println("║  👉 PLEASE NOTE DOWN THESE PORT NUMBERS!                                     ║");
+        System.out.println("║     These values are randomly hosted for this session and are not reused.    ║");
+        System.out.println("║     You must enter these exact numbers into the GUI apps when prompted!      ║");
         System.out.println("╚══════════════════════════════════════════════════════════════════════════════╝");
     }
 }

@@ -521,6 +521,8 @@ public class CpsDomain {
         public void radioTransmit(String jsonPayload) {
             if (board.radioBridge != null) {
                 board.radioBridge.transmit(jsonPayload);
+            } else if (ExternalAppletBridge.getDefaultBridge() != null) {
+                ExternalAppletBridge.getDefaultBridge().transmit(jsonPayload);
             }
         }
 
@@ -605,6 +607,8 @@ public class CpsDomain {
     // --- 4. PORT 1: WIRELESS IOT BRIDGE (Wi-Fi / Bluetooth Radio) ---
     public static class ExternalAppletBridge {
         private static final Map<Integer, ExternalAppletBridge> activeBridges = new ConcurrentHashMap<>();
+        private static volatile ExternalAppletBridge defaultBridge = null;
+        public static ExternalAppletBridge getDefaultBridge() { return defaultBridge; }
 
         public static synchronized ExternalAppletBridge getOrCreate(int port, String bridgeName) {
             if (port > 0) {
@@ -619,6 +623,7 @@ public class CpsDomain {
         private final int requestedPort;
         private volatile int actualPort = -1;
         private final String bridgeName;
+        private final ServerSocket server;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
         private final List<MessageListener> listeners = new ArrayList<>();
 
@@ -627,7 +632,18 @@ public class CpsDomain {
         public ExternalAppletBridge(int port, String bridgeName) {
             this.requestedPort = port;
             this.bridgeName = bridgeName;
-            Thread t = new Thread(this::startServer, bridgeName + "-" + (port <= 0 ? "dynamic" : port));
+            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
+            ServerSocket ss = null;
+            try {
+                ss = new ServerSocket(bindPort);
+                this.actualPort = ss.getLocalPort();
+                activeBridges.put(this.actualPort, this);
+                defaultBridge = this;
+            } catch (IOException e) {
+                System.out.printf("[BRIDGE ERROR] Failed to bind: %s%n", e.getMessage());
+            }
+            this.server = ss;
+            Thread t = new Thread(this::startServer, bridgeName + "-" + (actualPort > 0 ? actualPort : "dynamic"));
             t.setDaemon(true);
             t.start();
         }
@@ -637,19 +653,8 @@ public class CpsDomain {
         }
 
         private void startServer() {
-            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
-            try (ServerSocket server = new ServerSocket(bindPort)) {
-                this.actualPort = server.getLocalPort();
-                activeBridges.put(this.actualPort, this);
-                if (requestedPort <= 0) {
-                    System.out.println("╔══════════════════════════════════════════════════════════════════════════╗");
-                    System.out.printf("║  📡 [DYNAMIC PORT HOSTED] %-46s ║%n", bridgeName + " (Radio Telemetry)");
-                    System.out.printf("║  👉 Assigned Port Number: %-46d ║%n", actualPort);
-                    System.out.println("║  Provide this port to dashboard/monitoring apps when prompted!           ║");
-                    System.out.println("╚══════════════════════════════════════════════════════════════════════════╝");
-                } else {
-                    System.out.printf("[PORT 1 - WIRELESS] %s active on port %d. Waiting for telemetry client...%n", bridgeName, actualPort);
-                }
+            if (server == null) return;
+            try {
                 while (true) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "RadioClient-" + client.getRemoteSocketAddress());
@@ -729,6 +734,7 @@ public class CpsDomain {
 
         private final int requestedPort;
         private volatile int actualPort = -1;
+        private final ServerSocket server;
         private Map<String, Board> boards;
         private List<Wire> wires;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
@@ -740,7 +746,17 @@ public class CpsDomain {
             this.requestedPort = port;
             this.boards = boards;
             this.wires = wires;
-            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + (port <= 0 ? "dynamic" : port));
+            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
+            ServerSocket ss = null;
+            try {
+                ss = new ServerSocket(bindPort);
+                this.actualPort = ss.getLocalPort();
+                activeBridges.put(this.actualPort, this);
+            } catch (IOException e) {
+                System.out.printf("[BUS BRIDGE ERROR] Failed to bind: %s%n", e.getMessage());
+            }
+            this.server = ss;
+            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + (actualPort > 0 ? actualPort : "dynamic"));
             t.setDaemon(true);
             t.start();
         }
@@ -753,21 +769,10 @@ public class CpsDomain {
         }
 
         private void startServer() {
+            if (server == null) return;
             String role = (requestedPort == PORT_SENSORS) ? "ALL SENSORS BUS" :
                           (requestedPort == PORT_ACTUATORS) ? "ALL ACTUATORS BUS" : "PHYSICAL BUS";
-            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
-            try (ServerSocket server = new ServerSocket(bindPort)) {
-                this.actualPort = server.getLocalPort();
-                activeBridges.put(this.actualPort, this);
-                if (requestedPort <= 0) {
-                    System.out.println("╔══════════════════════════════════════════════════════════════════════════╗");
-                    System.out.printf("║  ⚡ [DYNAMIC PORT HOSTED] %-46s ║%n", role);
-                    System.out.printf("║  👉 Assigned Port Number: %-46d ║%n", actualPort);
-                    System.out.println("║  Provide this port to sensor input/stimulus apps when prompted!          ║");
-                    System.out.println("╚══════════════════════════════════════════════════════════════════════════╝");
-                } else {
-                    System.out.printf("[%s] Port %d active! Waiting for DAQ/testbed/applet...%n", role, actualPort);
-                }
+            try {
                 while (isRunning) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress());

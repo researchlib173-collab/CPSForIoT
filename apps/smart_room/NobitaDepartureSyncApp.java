@@ -730,12 +730,12 @@ public class NobitaDepartureSyncApp extends JFrame {
         JLabel sLbl = new JLabel("⚡ Physical Sensors Port (Input):");
         sLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         sLbl.setForeground(ACCENT_GOLD);
-        JTextField sPortFld = new JTextField(sensorPort > 0 ? String.valueOf(sensorPort) : "9091");
+        JTextField sPortFld = new JTextField(sensorPort > 0 ? String.valueOf(sensorPort) : "");
 
         JLabel tLbl = new JLabel("📡 Radio Telemetry Port (Monitor):");
         tLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         tLbl.setForeground(ACCENT_CYAN);
-        JTextField tPortFld = new JTextField(telemetryPort > 0 ? String.valueOf(telemetryPort) : "9090");
+        JTextField tPortFld = new JTextField(telemetryPort > 0 ? String.valueOf(telemetryPort) : "");
 
         panel.add(hLbl); panel.add(hostFld);
         panel.add(sLbl); panel.add(sPortFld);
@@ -1112,20 +1112,20 @@ public class NobitaDepartureSyncApp extends JFrame {
 
         if (sPort <= 0 || tPort <= 0 || (args.length > 0 && args[0].equalsIgnoreCase("--prompt"))) {
             JPanel panel = new JPanel(new GridLayout(4, 1, 6, 6));
-            JLabel info = new JLabel("<html><b>Workspace Dynamic Ports:</b><br>Enter the port numbers displayed by your workspace/CLI host:</html>");
+            JLabel info = new JLabel("<html><b>Workspace Dynamic Ports:</b><br>Enter the port numbers displayed in your backend terminal.<br><i>(Hosted values are random and are not reused)</i></html>");
             info.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
             panel.add(info);
 
             JPanel fGroup = new JPanel(new GridLayout(3, 2, 8, 8));
             JTextField hostFld = new JTextField("localhost");
-            JTextField sPortFld = new JTextField("9091");
-            JTextField tPortFld = new JTextField("9090");
+            JTextField sPortFld = new JTextField(""); // Blank: user enters value noted from terminal
+            JTextField tPortFld = new JTextField(""); // Blank: user enters value noted from terminal
 
             fGroup.add(new JLabel("Host / IP:"));
             fGroup.add(hostFld);
-            fGroup.add(new JLabel("⚡ Sensors Bus Port (Input):"));
+            fGroup.add(new JLabel("⚡ Sensors Bus Port (from terminal):"));
             fGroup.add(sPortFld);
-            fGroup.add(new JLabel("📡 Telemetry Stream Port (Monitor):"));
+            fGroup.add(new JLabel("📡 Telemetry Stream Port (from terminal):"));
             fGroup.add(tPortFld);
 
             panel.add(fGroup);
@@ -1134,7 +1134,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             int choice = JOptionPane.showOptionDialog(
                 null,
                 panel,
-                "Nobita Video Sync — Dynamic Port Setup",
+                "Nobita Video Sync — Enter Ports Noted From Terminal",
                 JOptionPane.YES_NO_CANCEL_OPTION,
                 JOptionPane.QUESTION_MESSAGE,
                 null,
@@ -1143,13 +1143,26 @@ public class NobitaDepartureSyncApp extends JFrame {
             );
 
             if (choice == 0) {
-                try {
-                    host = hostFld.getText().trim();
-                    sPort = Integer.parseInt(sPortFld.getText().trim());
-                    tPort = Integer.parseInt(tPortFld.getText().trim());
-                } catch (Exception ex) {
-                    sPort = CpsDomain.PORT_SENSORS;
-                    tPort = CpsDomain.PORT_TELEMETRY;
+                String sText = sPortFld.getText().trim();
+                String tText = tPortFld.getText().trim();
+                if (sText.isEmpty() || tText.isEmpty()) {
+                    JOptionPane.showMessageDialog(null,
+                        "Ports cannot be empty. Please enter the port numbers you noted down from the terminal.\nSwitching to Standalone Sim Mode.",
+                        "No Port Specified", JOptionPane.WARNING_MESSAGE);
+                    sPort = 0;
+                    tPort = 0;
+                } else {
+                    try {
+                        host = hostFld.getText().trim();
+                        sPort = Integer.parseInt(sText);
+                        tPort = Integer.parseInt(tText);
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(null,
+                            "Invalid port numbers entered. Switching to Standalone Sim Mode.",
+                            "Port Format Error", JOptionPane.ERROR_MESSAGE);
+                        sPort = 0;
+                        tPort = 0;
+                    }
                 }
             } else if (choice == 1) {
                 sPort = 0;

@@ -517,12 +517,18 @@ public class RoomDashboardApplet extends JFrame {
 
         if (port <= 0) {
             String pStr = JOptionPane.showInputDialog(null,
-                "Enter Telemetry Stream Port hosted by workspace (or 9090):",
+                "Enter Telemetry Stream Port noted down from the backend terminal:\n(Leave blank to exit)",
                 "CPS Room Dashboard — Port Input",
                 JOptionPane.QUESTION_MESSAGE);
-            if (pStr == null || pStr.trim().isEmpty()) port = 9090;
-            else {
-                try { port = Integer.parseInt(pStr.trim()); } catch (Exception e) { port = 9090; }
+            if (pStr == null || pStr.trim().isEmpty()) {
+                System.out.println("[INFO] No port provided. Exiting.");
+                return;
+            }
+            try {
+                port = Integer.parseInt(pStr.trim());
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(null, "Invalid port number entered.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
             }
         }
         final String fHost = host;
