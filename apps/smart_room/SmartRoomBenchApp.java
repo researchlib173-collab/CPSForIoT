@@ -66,19 +66,23 @@ public class SmartRoomBenchApp extends JFrame {
     private static final Color TEXT_MAIN      = new Color(248, 250, 252);
     private static final Color TEXT_MUTED     = new Color(148, 163, 184);
 
-    // Network Ports (Fixed 3-Port Standard)
-    private final String host;
-    private final int sensorPort;     // Port 9091
-    private final int telemetryPort;  // Port 9090
+    // Network Ports (Dynamic Workspace Ports)
+    private String host;
+    private int sensorPort;     // Sensors Bus (dynamic)
+    private int telemetryPort;  // Telemetry Stream (dynamic)
 
     private Socket sensorSocket;
     private PrintWriter sensorOut;
     private BufferedReader sensorIn;
+    private Thread sensorThread;
     private volatile boolean sensorConnected = false;
 
     private Socket telemetrySocket;
     private BufferedReader telemetryIn;
+    private Thread telemetryThread;
     private volatile boolean telemetryConnected = false;
+
+    private JLabel subLbl;
 
     // ─── Operational Scenarios ───────────────────────────────────────────────
     public enum Scenario {
@@ -221,7 +225,10 @@ public class SmartRoomBenchApp extends JFrame {
         titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_CYAN);
 
-        JLabel subLbl = new JLabel("Dual-Sensor Fusion (PIR + 60GHz mmWave Radar) | Realistic LED Lighting & Split AC | Port 9091 Sensors | Port 9090 Telemetry");
+        subLbl = new JLabel(String.format("Sensors: %s | Telemetry: %s | Host: %s | Dynamic Cyber-Physical Bus",
+            (sensorPort > 0 ? String.valueOf(sensorPort) : "SIM ONLY"),
+            (telemetryPort > 0 ? String.valueOf(telemetryPort) : "SIM ONLY"),
+            host));
         subLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
         subLbl.setForeground(TEXT_MUTED);
         titleGrp.add(titleLbl);
@@ -229,8 +236,27 @@ public class SmartRoomBenchApp extends JFrame {
 
         JPanel pillsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 2));
         pillsPanel.setOpaque(false);
-        statusSensorPill = createPill("⚡ SENSORS: 9091", ACCENT_AMBER);
-        statusTelemPill  = createPill("📡 TELEMETRY: 9090", ACCENT_AMBER);
+
+        JButton btnSetPorts = createStyledButton("🔌 ENTER PORTS", CARD_BG, ACCENT_CYAN);
+        btnSetPorts.setToolTipText("Enter dynamic port numbers hosted by workspace");
+        btnSetPorts.addActionListener(e -> promptAndSetPorts());
+
+        statusSensorPill = createPill("⚡ SENSORS: " + (sensorPort > 0 ? sensorPort : "SIM"), ACCENT_AMBER);
+        statusTelemPill  = createPill("📡 TELEMETRY: " + (telemetryPort > 0 ? telemetryPort : "SIM"), ACCENT_AMBER);
+
+        statusSensorPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        statusSensorPill.setToolTipText("Click to change Sensors Port");
+        statusSensorPill.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { promptAndSetPorts(); }
+        });
+
+        statusTelemPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        statusTelemPill.setToolTipText("Click to change Telemetry Port");
+        statusTelemPill.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { promptAndSetPorts(); }
+        });
+
+        pillsPanel.add(btnSetPorts);
         pillsPanel.add(statusSensorPill);
         pillsPanel.add(statusTelemPill);
 
@@ -692,69 +718,151 @@ public class SmartRoomBenchApp extends JFrame {
     }
 
     // ─── Network Socket Communications ───────────────────────────────────────
-    private void connectSockets() {
-        // Port 9091 (Physical Sensor Bus)
-        new Thread(() -> {
+    public synchronized void reconnectToPorts(String newHost, int newSPort, int newTPort) {
+        log(String.format("Updating connection ports -> Host: %s, Sensors: %d, Telemetry: %d", newHost, newSPort, newTPort));
+        this.host = newHost;
+        this.sensorPort = newSPort;
+        this.telemetryPort = newTPort;
+
+        try { if (sensorSocket != null) sensorSocket.close(); } catch (Exception ignored) {}
+        try { if (telemetrySocket != null) telemetrySocket.close(); } catch (Exception ignored) {}
+        if (sensorThread != null) sensorThread.interrupt();
+        if (telemetryThread != null) telemetryThread.interrupt();
+        sensorConnected = false;
+        telemetryConnected = false;
+
+        if (subLbl != null) {
+            subLbl.setText(String.format("Sensors: %s | Telemetry: %s | Host: %s | Dynamic Cyber-Physical Bus",
+                (sensorPort > 0 ? String.valueOf(sensorPort) : "SIM ONLY"),
+                (telemetryPort > 0 ? String.valueOf(telemetryPort) : "SIM ONLY"),
+                host));
+        }
+
+        connectSockets();
+    }
+
+    public void promptAndSetPorts() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        panel.setBackground(CARD_BG);
+
+        JLabel hLbl = new JLabel("Host IP / Hostname:");
+        hLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        hLbl.setForeground(TEXT_MAIN);
+        JTextField hostFld = new JTextField(host);
+
+        JLabel sLbl = new JLabel("⚡ Physical Sensors Port (Input):");
+        sLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        sLbl.setForeground(ACCENT_AMBER);
+        JTextField sPortFld = new JTextField(sensorPort > 0 ? String.valueOf(sensorPort) : "9091");
+
+        JLabel tLbl = new JLabel("📡 Radio Telemetry Port (Monitor):");
+        tLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        tLbl.setForeground(ACCENT_CYAN);
+        JTextField tPortFld = new JTextField(telemetryPort > 0 ? String.valueOf(telemetryPort) : "9090");
+
+        panel.add(hLbl); panel.add(hostFld);
+        panel.add(sLbl); panel.add(sPortFld);
+        panel.add(tLbl); panel.add(tPortFld);
+
+        int res = JOptionPane.showConfirmDialog(this, panel,
+            "🔌 Input Dynamic Workspace Ports", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (res == JOptionPane.OK_OPTION) {
             try {
-                sensorSocket = new Socket(host, sensorPort);
-                sensorOut = new PrintWriter(new OutputStreamWriter(sensorSocket.getOutputStream()), true);
-                sensorIn  = new BufferedReader(new InputStreamReader(sensorSocket.getInputStream()));
-                sensorConnected = true;
-
-                SwingUtilities.invokeLater(() -> {
-                    statusSensorPill.setText("● SENSORS: 9091");
-                    statusSensorPill.setForeground(ACCENT_GREEN);
-                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
-                });
-                log("Connected to Physical Sensor Bus on " + host + ":" + sensorPort);
+                String nHost = hostFld.getText().trim();
+                int nSPort = Integer.parseInt(sPortFld.getText().trim());
+                int nTPort = Integer.parseInt(tPortFld.getText().trim());
+                reconnectToPorts(nHost, nSPort, nTPort);
             } catch (Exception ex) {
-                sensorConnected = false;
-                SwingUtilities.invokeLater(() -> {
-                    statusSensorPill.setText("● SENSORS: SIM ONLY");
-                    statusSensorPill.setForeground(ACCENT_AMBER);
-                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
-                });
-                log("[INFO] Sensors Bus socket offline. Operating in self-contained realistic simulation mode.");
+                JOptionPane.showMessageDialog(this, "Invalid port number. Please enter numeric ports.", "Port Input Error", JOptionPane.ERROR_MESSAGE);
             }
-        }, "SensorsBusThread").start();
+        }
+    }
 
-        // Port 9090 (Telemetry Stream)
-        new Thread(() -> {
-            while (!Thread.currentThread().isInterrupted()) {
-                if (!telemetryConnected) {
-                    try {
-                        telemetrySocket = new Socket(host, telemetryPort);
-                        telemetryIn = new BufferedReader(new InputStreamReader(telemetrySocket.getInputStream()));
-                        telemetryConnected = true;
-                        SwingUtilities.invokeLater(() -> {
-                            statusTelemPill.setText("● TELEMETRY: 9090");
-                            statusTelemPill.setForeground(ACCENT_GREEN);
-                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
-                        });
-                        log("Connected to MCU Wi-Fi Telemetry on " + host + ":" + telemetryPort);
-                    } catch (Exception e) {
-                        telemetryConnected = false;
-                        SwingUtilities.invokeLater(() -> {
-                            statusTelemPill.setText("● TELEMETRY: SIM");
-                            statusTelemPill.setForeground(ACCENT_AMBER);
-                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
-                        });
-                        try { Thread.sleep(3000); } catch (InterruptedException ie) { break; }
-                        continue;
-                    }
-                }
-
+    private void connectSockets() {
+        // Physical Sensor Bus
+        if (sensorPort <= 0) {
+            sensorConnected = false;
+            SwingUtilities.invokeLater(() -> {
+                statusSensorPill.setText("● SENSORS: SIM ONLY");
+                statusSensorPill.setForeground(ACCENT_AMBER);
+                statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
+            });
+            log("[INFO] Sensors Bus set to 0. Operating in standalone simulation mode.");
+        } else {
+            sensorThread = new Thread(() -> {
                 try {
-                    String line;
-                    while ((line = telemetryIn.readLine()) != null) {
-                        parseTelemetry(line);
-                    }
+                    sensorSocket = new Socket(host, sensorPort);
+                    sensorOut = new PrintWriter(new OutputStreamWriter(sensorSocket.getOutputStream()), true);
+                    sensorIn  = new BufferedReader(new InputStreamReader(sensorSocket.getInputStream()));
+                    sensorConnected = true;
+
+                    SwingUtilities.invokeLater(() -> {
+                        statusSensorPill.setText("● SENSORS: " + sensorPort);
+                        statusSensorPill.setForeground(ACCENT_GREEN);
+                        statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                    });
+                    log("Connected to Physical Sensor Bus on " + host + ":" + sensorPort);
                 } catch (Exception ex) {
-                    telemetryConnected = false;
-                    try { if (telemetrySocket != null) telemetrySocket.close(); } catch (Exception ignored) {}
+                    sensorConnected = false;
+                    SwingUtilities.invokeLater(() -> {
+                        statusSensorPill.setText("● SENSORS: OFF (" + sensorPort + ")");
+                        statusSensorPill.setForeground(ACCENT_AMBER);
+                        statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                    });
+                    log("[INFO] Sensors Bus socket unreachable on " + host + ":" + sensorPort + ". Click [🔌 ENTER PORTS] to update.");
                 }
-            }
-        }, "TelemetryBusThread").start();
+            }, "SensorsBusThread");
+            sensorThread.start();
+        }
+
+        // Telemetry Stream
+        if (telemetryPort <= 0) {
+            telemetryConnected = false;
+            SwingUtilities.invokeLater(() -> {
+                statusTelemPill.setText("● TELEMETRY: SIM ONLY");
+                statusTelemPill.setForeground(ACCENT_AMBER);
+                statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
+            });
+            log("[INFO] Telemetry stream set to 0. Operating in standalone simulation mode.");
+        } else {
+            telemetryThread = new Thread(() -> {
+                while (!Thread.currentThread().isInterrupted()) {
+                    if (!telemetryConnected) {
+                        try {
+                            telemetrySocket = new Socket(host, telemetryPort);
+                            telemetryIn = new BufferedReader(new InputStreamReader(telemetrySocket.getInputStream()));
+                            telemetryConnected = true;
+                            SwingUtilities.invokeLater(() -> {
+                                statusTelemPill.setText("● TELEMETRY: " + telemetryPort);
+                                statusTelemPill.setForeground(ACCENT_GREEN);
+                                statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                            });
+                            log("Connected to MCU Wi-Fi Telemetry on " + host + ":" + telemetryPort);
+                        } catch (Exception e) {
+                            telemetryConnected = false;
+                            SwingUtilities.invokeLater(() -> {
+                                statusTelemPill.setText("● TELEMETRY: OFF (" + telemetryPort + ")");
+                                statusTelemPill.setForeground(ACCENT_AMBER);
+                                statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
+                            });
+                            try { Thread.sleep(3000); } catch (InterruptedException ie) { break; }
+                            continue;
+                        }
+                    }
+
+                    try {
+                        String line;
+                        while ((line = telemetryIn.readLine()) != null) {
+                            parseTelemetry(line);
+                        }
+                    } catch (Exception ex) {
+                        telemetryConnected = false;
+                        try { if (telemetrySocket != null) telemetrySocket.close(); } catch (Exception ignored) {}
+                    }
+                }
+            }, "TelemetryBusThread");
+            telemetryThread.start();
+        }
     }
 
     private void parseTelemetry(String json) {
@@ -1331,11 +1439,74 @@ public class SmartRoomBenchApp extends JFrame {
 
     // ─── Main Entry Point ────────────────────────────────────────────────────
     public static void main(String[] args) {
-        String host = args.length > 0 ? args[0] : "localhost";
-        int sPort   = args.length > 1 ? Integer.parseInt(args[1]) : 9091;
-        int tPort   = args.length > 2 ? Integer.parseInt(args[2]) : 9090;
-
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
-        SwingUtilities.invokeLater(() -> new SmartRoomBenchApp(host, sPort, tPort));
+
+        String host = "localhost";
+        int sPort = -1;
+        int tPort = -1;
+
+        if (args.length >= 3) {
+            host = args[0];
+            sPort = Integer.parseInt(args[1]);
+            tPort = Integer.parseInt(args[2]);
+        } else if (args.length == 2) {
+            sPort = Integer.parseInt(args[0]);
+            tPort = Integer.parseInt(args[1]);
+        }
+
+        // If ports were not supplied via arguments or --prompt was specified:
+        if (sPort <= 0 || tPort <= 0 || (args.length > 0 && args[0].equalsIgnoreCase("--prompt"))) {
+            JPanel panel = new JPanel(new GridLayout(4, 1, 6, 6));
+            JLabel info = new JLabel("<html><b>Workspace Dynamic Ports:</b><br>Enter the port numbers displayed by your workspace/CLI host:</html>");
+            info.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
+            panel.add(info);
+
+            JPanel fGroup = new JPanel(new GridLayout(3, 2, 8, 8));
+            JTextField hostFld = new JTextField("localhost");
+            JTextField sPortFld = new JTextField("9091");
+            JTextField tPortFld = new JTextField("9090");
+
+            fGroup.add(new JLabel("Host / IP:"));
+            fGroup.add(hostFld);
+            fGroup.add(new JLabel("⚡ Sensors Bus Port (Input):"));
+            fGroup.add(sPortFld);
+            fGroup.add(new JLabel("📡 Telemetry Stream Port (Monitor):"));
+            fGroup.add(tPortFld);
+
+            panel.add(fGroup);
+
+            Object[] options = {"⚡ Connect to Ports", "🚀 Standalone Sim Mode", "Exit"};
+            int choice = JOptionPane.showOptionDialog(
+                null,
+                panel,
+                "CPS Smart Room — Dynamic Port Setup",
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]
+            );
+
+            if (choice == 0) { // Connect to Ports
+                try {
+                    host = hostFld.getText().trim();
+                    sPort = Integer.parseInt(sPortFld.getText().trim());
+                    tPort = Integer.parseInt(tPortFld.getText().trim());
+                } catch (Exception ex) {
+                    sPort = 9091;
+                    tPort = 9090;
+                }
+            } else if (choice == 1) { // Standalone Sim Mode
+                sPort = 0;
+                tPort = 0;
+            } else {
+                return;
+            }
+        }
+
+        final String finalHost = host;
+        final int finalSPort = sPort;
+        final int finalTPort = tPort;
+        SwingUtilities.invokeLater(() -> new SmartRoomBenchApp(finalHost, finalSPort, finalTPort));
     }
 }

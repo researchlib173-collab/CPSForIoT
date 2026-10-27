@@ -506,8 +506,27 @@ public class RoomDashboardApplet extends JFrame {
 
     // ─── Entry Point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
-        String host = args.length > 0 ? args[0] : "localhost";
-        int port = args.length > 1 ? Integer.parseInt(args[1]) : 9090;
-        SwingUtilities.invokeLater(() -> new RoomDashboardApplet(host, port));
+        String host = "localhost";
+        int port = -1;
+        if (args.length >= 2) {
+            host = args[0];
+            port = Integer.parseInt(args[1]);
+        } else if (args.length == 1 && !args[0].equalsIgnoreCase("--prompt")) {
+            port = Integer.parseInt(args[0]);
+        }
+
+        if (port <= 0) {
+            String pStr = JOptionPane.showInputDialog(null,
+                "Enter Telemetry Stream Port hosted by workspace (or 9090):",
+                "CPS Room Dashboard — Port Input",
+                JOptionPane.QUESTION_MESSAGE);
+            if (pStr == null || pStr.trim().isEmpty()) port = 9090;
+            else {
+                try { port = Integer.parseInt(pStr.trim()); } catch (Exception e) { port = 9090; }
+            }
+        }
+        final String fHost = host;
+        final int fPort = port;
+        SwingUtilities.invokeLater(() -> new RoomDashboardApplet(fHost, fPort));
     }
 }

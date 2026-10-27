@@ -574,8 +574,7 @@ public class CpsDomain {
         public McuHAL getHal() { return hal; }
 
         public void enableRadioBridge(int port) {
-            int actualPort = (port > 0) ? port : PORT_TELEMETRY;
-            this.radioBridge = ExternalAppletBridge.getOrCreate(actualPort, "RadioBridge-" + id);
+            this.radioBridge = ExternalAppletBridge.getOrCreate(port, "RadioBridge-" + id);
             this.socketBridge = this.radioBridge;
         }
 
@@ -608,10 +607,17 @@ public class CpsDomain {
         private static final Map<Integer, ExternalAppletBridge> activeBridges = new ConcurrentHashMap<>();
 
         public static synchronized ExternalAppletBridge getOrCreate(int port, String bridgeName) {
-            return activeBridges.computeIfAbsent(port, p -> new ExternalAppletBridge(p, bridgeName));
+            if (port > 0) {
+                ExternalAppletBridge existing = activeBridges.get(port);
+                if (existing != null) return existing;
+            }
+            ExternalAppletBridge created = new ExternalAppletBridge(port, bridgeName);
+            if (port > 0) activeBridges.put(port, created);
+            return created;
         }
 
-        private final int port;
+        private final int requestedPort;
+        private volatile int actualPort = -1;
         private final String bridgeName;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
         private final List<MessageListener> listeners = new ArrayList<>();
@@ -619,9 +625,9 @@ public class CpsDomain {
         public interface MessageListener { void onMessage(String msg); }
 
         public ExternalAppletBridge(int port, String bridgeName) {
-            this.port = port;
+            this.requestedPort = port;
             this.bridgeName = bridgeName;
-            Thread t = new Thread(this::startServer, bridgeName + "-" + port);
+            Thread t = new Thread(this::startServer, bridgeName + "-" + (port <= 0 ? "dynamic" : port));
             t.setDaemon(true);
             t.start();
         }
@@ -631,8 +637,19 @@ public class CpsDomain {
         }
 
         private void startServer() {
-            try (ServerSocket server = new ServerSocket(port)) {
-                System.out.printf("[PORT 1 - WIRELESS] %s active on port %d. Waiting for telemetry client...%n", bridgeName, port);
+            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
+            try (ServerSocket server = new ServerSocket(bindPort)) {
+                this.actualPort = server.getLocalPort();
+                activeBridges.put(this.actualPort, this);
+                if (requestedPort <= 0) {
+                    System.out.println("╔══════════════════════════════════════════════════════════════════════════╗");
+                    System.out.printf("║  📡 [DYNAMIC PORT HOSTED] %-46s ║%n", bridgeName + " (Radio Telemetry)");
+                    System.out.printf("║  👉 Assigned Port Number: %-46d ║%n", actualPort);
+                    System.out.println("║  Provide this port to dashboard/monitoring apps when prompted!           ║");
+                    System.out.println("╚══════════════════════════════════════════════════════════════════════════╝");
+                } else {
+                    System.out.printf("[PORT 1 - WIRELESS] %s active on port %d. Waiting for telemetry client...%n", bridgeName, actualPort);
+                }
                 while (true) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "RadioClient-" + client.getRemoteSocketAddress());
@@ -640,7 +657,7 @@ public class CpsDomain {
                     ct.start();
                 }
             } catch (IOException e) {
-                System.out.printf("[PORT 1 ERROR] %s (port %d): %s%n", bridgeName, port, e.getMessage());
+                System.out.printf("[PORT 1 ERROR] %s (port %d): %s%n", bridgeName, (actualPort > 0 ? actualPort : requestedPort), e.getMessage());
             }
         }
 
@@ -671,7 +688,7 @@ public class CpsDomain {
         }
 
         public boolean isConnected() { return !activeClients.isEmpty(); }
-        public int getPort() { return port; }
+        public int getPort() { return (actualPort > 0) ? actualPort : requestedPort; }
         public void addMessageListener(MessageListener l) { listeners.add(l); }
     }
 
@@ -680,13 +697,15 @@ public class CpsDomain {
         private static final Map<Integer, PhysicalTerminalBusBridge> activeBridges = new ConcurrentHashMap<>();
 
         public static synchronized PhysicalTerminalBusBridge getOrCreate(int port, Map<String, Board> boards, List<Wire> wires) {
-            PhysicalTerminalBusBridge existing = activeBridges.get(port);
-            if (existing != null) {
-                existing.updateContext(boards, wires);
-                return existing;
+            if (port > 0) {
+                PhysicalTerminalBusBridge existing = activeBridges.get(port);
+                if (existing != null) {
+                    existing.updateContext(boards, wires);
+                    return existing;
+                }
             }
             PhysicalTerminalBusBridge created = new PhysicalTerminalBusBridge(port, boards, wires);
-            activeBridges.put(port, created);
+            if (port > 0) activeBridges.put(port, created);
             return created;
         }
 
@@ -708,7 +727,8 @@ public class CpsDomain {
             }
         }
 
-        private final int port;
+        private final int requestedPort;
+        private volatile int actualPort = -1;
         private Map<String, Board> boards;
         private List<Wire> wires;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
@@ -717,15 +737,15 @@ public class CpsDomain {
         public void setOnPinChangeCallback(Runnable cb) { this.onPinChangeCallback = cb; }
 
         public PhysicalTerminalBusBridge(int port, Map<String, Board> boards, List<Wire> wires) {
-            this.port = port;
+            this.requestedPort = port;
             this.boards = boards;
             this.wires = wires;
-            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + port);
+            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + (port <= 0 ? "dynamic" : port));
             t.setDaemon(true);
             t.start();
         }
 
-        public int getPort() { return port; }
+        public int getPort() { return (actualPort > 0) ? actualPort : requestedPort; }
 
         public void updateContext(Map<String, Board> newBoards, List<Wire> newWires) {
             this.boards = newBoards;
@@ -733,10 +753,21 @@ public class CpsDomain {
         }
 
         private void startServer() {
-            String role = (port == PORT_SENSORS) ? "ALL SENSORS BUS" :
-                          (port == PORT_ACTUATORS) ? "ALL ACTUATORS BUS" : "PHYSICAL BUS";
-            try (ServerSocket server = new ServerSocket(port)) {
-                System.out.printf("[%s] Port %d active! Waiting for DAQ/testbed/applet...%n", role, port);
+            String role = (requestedPort == PORT_SENSORS) ? "ALL SENSORS BUS" :
+                          (requestedPort == PORT_ACTUATORS) ? "ALL ACTUATORS BUS" : "PHYSICAL BUS";
+            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
+            try (ServerSocket server = new ServerSocket(bindPort)) {
+                this.actualPort = server.getLocalPort();
+                activeBridges.put(this.actualPort, this);
+                if (requestedPort <= 0) {
+                    System.out.println("╔══════════════════════════════════════════════════════════════════════════╗");
+                    System.out.printf("║  ⚡ [DYNAMIC PORT HOSTED] %-46s ║%n", role);
+                    System.out.printf("║  👉 Assigned Port Number: %-46d ║%n", actualPort);
+                    System.out.println("║  Provide this port to sensor input/stimulus apps when prompted!          ║");
+                    System.out.println("╚══════════════════════════════════════════════════════════════════════════╝");
+                } else {
+                    System.out.printf("[%s] Port %d active! Waiting for DAQ/testbed/applet...%n", role, actualPort);
+                }
                 while (isRunning) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress());
@@ -744,19 +775,20 @@ public class CpsDomain {
                     ct.start();
                 }
             } catch (IOException e) {
-                System.out.printf("[%s ERROR] (port %d): %s%n", role, port, e.getMessage());
+                System.out.printf("[%s ERROR] (port %d): %s%n", role, (actualPort > 0 ? actualPort : requestedPort), e.getMessage());
             }
         }
 
         private void handleClient(Socket client) {
-            String role = (port == PORT_SENSORS) ? "SENSORS" :
-                          (port == PORT_ACTUATORS) ? "ACTUATORS" : "TERMINALS";
-            System.out.printf("[%s BUS] Client tapped into port %d from %s%n", role, port, client.getRemoteSocketAddress());
+            int effectivePort = (actualPort > 0 ? actualPort : requestedPort);
+            String role = (effectivePort == PORT_SENSORS) ? "SENSORS" :
+                          (effectivePort == PORT_ACTUATORS) ? "ACTUATORS" : "TERMINALS";
+            System.out.printf("[%s BUS] Client tapped into port %d from %s%n", role, effectivePort, client.getRemoteSocketAddress());
             try (BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                  PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true)) {
                 
                 activeClients.add(out);
-                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + port + ",\"role\":\"" + role + "\"}");
+                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + effectivePort + ",\"role\":\"" + role + "\"}");
                 
                 String line;
                 while ((line = in.readLine()) != null) {
@@ -764,7 +796,7 @@ public class CpsDomain {
                 }
             } catch (IOException ignored) {
             } finally {
-                System.out.printf("[%s BUS] Client on port %d disconnected.%n", role, port);
+                System.out.printf("[%s BUS] Client on port %d disconnected.%n", role, effectivePort);
             }
         }
 
