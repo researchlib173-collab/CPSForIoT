@@ -12,6 +12,11 @@ import java.util.List;
 // SMART ROOM DASHBOARD — Phase 2 Swing GUI
 // Visualises sensor fusion, room state, relay outputs and hysteresis timer.
 // Usage: java SmartRoomDashboard [host] [port]
+// Features:
+//   - Glossy 3D glass bubble effect with high-contrast text pill
+//   - Interactive scenario drop down box with emojis
+//   - Strict color contrast verification across all components
+//   - Emojis removed everywhere else
 // ============================================================================
 public class SmartRoomDashboard extends JFrame {
 
@@ -57,8 +62,11 @@ public class SmartRoomDashboard extends JFrame {
     private final RelayPanel       relayPanel     = new RelayPanel();
     private final HysteresisPanel  hystPanel      = new HysteresisPanel();
     private final EventLogPanel    logPanel       = new EventLogPanel();
-    private final JLabel           statusLabel    = new JLabel("● DISCONNECTED");
+    private final JLabel           statusLabel    = new JLabel("[DISCONNECTED]");
     private final JLabel           deviceLabel    = new JLabel("Device: —");
+
+    // ─── Drop Down Box (Scenario Mode - Emojis allowed inside dropdown items) ─
+    private JComboBox<String> scenarioCombo;
 
     // ─── Input controls (inject sensor values) ────────────────────────────────
     private final JToggleButton pirBtn    = styledToggle("PIR",   "Motion", "No Motion");
@@ -77,8 +85,8 @@ public class SmartRoomDashboard extends JFrame {
         buildUI();
         startUiTimer();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(1050, 720);
-        setMinimumSize(new Dimension(900, 600));
+        setSize(1080, 740);
+        setMinimumSize(new Dimension(920, 620));
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG);
         setVisible(true);
@@ -105,6 +113,25 @@ public class SmartRoomDashboard extends JFrame {
         statusLabel.setForeground(RED_C);
         statusLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
 
+        // ── Drop Down Box: Emojis preserved inside dropdown box ──
+        scenarioCombo = new JComboBox<>(new String[] {
+            "📡 Live Telemetry Stream",
+            "🚶 1. Person Enters Room (Occupied & Lights ON)",
+            "💻 2. Sedentary Desk Study (Micro-Presence)",
+            "🛏️ 3. Person Resting in Bed (Sleep Mode)",
+            "🚪 4. Person Leaves Room (Grace Hysteresis)",
+            "⚪ 5. Vacant Standby (All Relays Off)"
+        });
+        scenarioCombo.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+        scenarioCombo.setBackground(new Color(24, 32, 47));
+        scenarioCombo.setForeground(TEXT);
+        scenarioCombo.setFocusable(false);
+        scenarioCombo.setBorder(new LineBorder(new Color(51, 65, 85), 1, true));
+        scenarioCombo.addActionListener(e -> {
+            int idx = scenarioCombo.getSelectedIndex();
+            applyScenarioPreset(idx);
+        });
+
         JButton connectBtn = dashBtn("Connect", GREEN);
         connectBtn.addActionListener(e -> attemptConnect());
         JButton disconnectBtn = dashBtn("Disconnect", RED_C);
@@ -112,13 +139,75 @@ public class SmartRoomDashboard extends JFrame {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 2));
         right.setOpaque(false);
-        right.add(new JLabel(host + ":" + port + "  "));
-        right.add(connectBtn); right.add(disconnectBtn);
+        right.add(new JLabel("Mode: "));
+        right.add(scenarioCombo);
+        right.add(connectBtn);
+        right.add(disconnectBtn);
 
         bar.add(deviceLabel, BorderLayout.WEST);
         bar.add(statusLabel, BorderLayout.CENTER);
         bar.add(right,       BorderLayout.EAST);
         return bar;
+    }
+
+    private void applyScenarioPreset(int idx) {
+        if (idx == 0) {
+            logPanel.add("Switched to Live Telemetry Stream.");
+            return;
+        }
+        switch (idx) {
+            case 1 -> {
+                roomState = "OCCUPIED";
+                lightOn = true;
+                hvacOn = true;
+                pirActive = true;
+                doorOpen = true;
+                radarConf = 85.0;
+                hystRemainingSec = 0;
+                logPanel.add("Preset 1: Occupancy Active applied.");
+            }
+            case 2 -> {
+                roomState = "OCCUPIED";
+                lightOn = true;
+                hvacOn = true;
+                pirActive = false;
+                doorOpen = false;
+                radarConf = 75.0;
+                hystRemainingSec = 0;
+                logPanel.add("Preset 2: Sedentary Desk Study applied.");
+            }
+            case 3 -> {
+                roomState = "SLEEP";
+                lightOn = false;
+                hvacOn = true;
+                pirActive = false;
+                doorOpen = false;
+                radarConf = 55.0;
+                hystRemainingSec = 0;
+                logPanel.add("Preset 3: Sleep Mode applied.");
+            }
+            case 4 -> {
+                roomState = "HYSTERESIS";
+                lightOn = true;
+                hvacOn = true;
+                pirActive = false;
+                doorOpen = true;
+                radarConf = 15.0;
+                hystRemainingSec = 25;
+                logPanel.add("Preset 4: Grace Window Hysteresis applied.");
+            }
+            case 5 -> {
+                roomState = "VACANT";
+                lightOn = false;
+                hvacOn = false;
+                pirActive = false;
+                doorOpen = false;
+                radarConf = 0.0;
+                hystRemainingSec = 0;
+                logPanel.add("Preset 5: Vacant Standby applied.");
+            }
+        }
+        repaint();
     }
 
     private JPanel buildCenter() {
@@ -143,18 +232,23 @@ public class SmartRoomDashboard extends JFrame {
         return center;
     }
 
-    /** Bottom bar — sensor toggle buttons sent to board via socket */
+    /** Bottom bar — sensor toggle buttons sent to board via socket (No emojis) */
     private JPanel buildInputBar() {
         JPanel bar = new JPanel(new BorderLayout(8, 0));
         bar.setBackground(new Color(22, 22, 38));
-        bar.setBorder(titledBorder("🎛  SENSOR INPUTS  —  toggle to inject signal into board"));
+        bar.setBorder(titledBorder("SENSOR INPUTS — toggle to inject signal into board"));
 
         JPanel toggles = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 4));
         toggles.setOpaque(false);
         toggles.add(pirBtn);
         toggles.add(doorBtn);
         toggles.add(radarBtn);
-        toggles.add(new JLabel("  Radar Confidence: "));
+
+        JLabel radLbl = new JLabel("  Radar Confidence: ");
+        radLbl.setForeground(TEXT);
+        radLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        toggles.add(radLbl);
+
         radarSlider.setPreferredSize(new Dimension(200, 28));
         radarSlider.setOpaque(false);
         radarSlider.setForeground(ACCENT);
@@ -172,7 +266,7 @@ public class SmartRoomDashboard extends JFrame {
         manualField.setBackground(new Color(30, 30, 50));
         manualField.setForeground(TEXT);
         manualField.setCaretColor(Color.WHITE);
-        JButton sendBtn = dashBtn("Send ▶", ACCENT);
+        JButton sendBtn = dashBtn("Send", ACCENT);
         sendBtn.addActionListener(e -> { sendRaw(manualField.getText().trim()); manualField.selectAll(); });
         manualField.addActionListener(e -> sendBtn.doClick());
 
@@ -198,128 +292,117 @@ public class SmartRoomDashboard extends JFrame {
             terminalOut.printf("SET PIR_MotionSensor DATA %.1f%n", pirOn ? 3.3 : 0.0);
             terminalOut.printf("SET DoorContactSensor STATE %.1f%n", doorOn ? 3.3 : 0.0);
             terminalOut.printf("SET MillimeterWaveRadar PRESENCE_SIG %.3f%n", radarV);
-            logPanel.add(String.format("→ [PORT 2 TERMINALS] SET PIR=%.1fV, DOOR=%.1fV, RADAR=%.2fV",
-                pirOn ? 3.3 : 0.0, doorOn ? 3.3 : 0.0, radarV));
+            terminalOut.flush();
         }
 
-        // 2. FALLBACK/PARALLEL: Forward to Port 1 radio bridge
-        sendRaw(String.format(
-            "{\"cmd\":\"SET_PINS\",\"GPIO_12\":%.1f,\"GPIO_14\":%.1f,\"GPIO_27\":%.3f}",
-            pirOn ? 3.3 : 0.0, doorOn ? 3.3 : 0.0, radarV
-        ));
+        // 2. BACKUP: Transmit JSON packet over Port 1
+        String json = String.format(Locale.US,
+            "{\"type\":\"SENSOR_OVERRIDE\",\"pir\":%b,\"door\":%b,\"radar\":%d,\"radar_v\":%.3f}",
+            pirOn, doorOn, radarOn ? conf : 0, radarV);
+        sendRaw(json);
     }
 
-    // ─── Networking ───────────────────────────────────────────────────────────
+    private void sendRaw(String msg) {
+        if (connected && out != null) {
+            out.println(msg);
+            logPanel.add("-> " + msg);
+        } else {
+            logPanel.add("[WARN] Not connected — cannot send: " + msg);
+        }
+    }
+
+    // ─── Network connection ───────────────────────────────────────────────────
     private void attemptConnect() {
+        if (connected) return;
         new Thread(() -> {
             try {
-                setStatus("Connecting...", AMBER);
-                
-                // Connect to Port 1: Wireless Telemetry Radio
+                logPanel.add("Connecting to Port 1 (Telemetry) at " + host + ":" + port + "...");
                 socket = new Socket(host, port);
-                out   = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
-                in_br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                out    = new PrintWriter(socket.getOutputStream(), true);
+                in_br  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 connected = true;
-                logPanel.add("[PORT 1] Connected to Radio Bridge on port " + port);
+                statusLabel.setText("[CONNECTED: " + port + "]");
+                statusLabel.setForeground(GREEN);
+                logPanel.add("Connected to Telemetry Bridge!");
 
-                // Connect to Port 2: Physical Netlist Terminal Bus
-                try {
-                    terminalSocket = new Socket(host, terminalPort);
-                    terminalOut = new PrintWriter(new OutputStreamWriter(terminalSocket.getOutputStream()), true);
-                    terminalIn_br = new BufferedReader(new InputStreamReader(terminalSocket.getInputStream()));
-                    terminalConnected = true;
-                    logPanel.add("[PORT 2] Tapped into Physical Netlist Terminal Bus on port " + terminalPort);
-                    new Thread(this::readTerminalLoop, "TerminalReader").start();
-                } catch (IOException e) {
-                    logPanel.add("[PORT 2 NOTICE] Terminal bus (port " + terminalPort + ") not open yet. Using Port 1.");
+                // Connect to Port 2 (Physical Sensors Bus)
+                connectTerminalBus();
+
+                // Telemetry listening loop
+                String line;
+                while (connected && (line = in_br.readLine()) != null) {
+                    final String packet = line;
+                    SwingUtilities.invokeLater(() -> parsePacket(packet));
                 }
-
-                setStatus("● CONNECTED  →  Radio:" + port + " | Terminals:" + terminalPort, GREEN);
-                new Thread(this::readLoop, "DashReader").start();
-            } catch (IOException ex) {
-                setStatus("● FAILED: " + ex.getMessage(), RED_C);
-                logPanel.add("[ERROR] " + ex.getMessage());
+            } catch (IOException e) {
+                logPanel.add("[CONN ERROR] " + e.getMessage());
+            } finally {
+                disconnect();
             }
-        }, "DashConnect").start();
+        }, "DashboardNetReader").start();
     }
 
-    private void readTerminalLoop() {
-        try {
-            String line;
-            while (terminalConnected && (line = terminalIn_br.readLine()) != null) {
-                final String msg = line;
-                logPanel.add("← [PORT 2] " + msg);
+    private void connectTerminalBus() {
+        new Thread(() -> {
+            try {
+                logPanel.add("Connecting to Port 2 (Terminal Sensors Bus) at " + host + ":" + terminalPort + "...");
+                terminalSocket = new Socket(host, terminalPort);
+                terminalOut    = new PrintWriter(terminalSocket.getOutputStream(), true);
+                terminalIn_br  = new BufferedReader(new InputStreamReader(terminalSocket.getInputStream()));
+                terminalConnected = true;
+                logPanel.add("Tapped into Port 2 (Physical Terminal Bus)!");
+                String line;
+                while (terminalConnected && (line = terminalIn_br.readLine()) != null) {
+                    final String tPacket = line;
+                    SwingUtilities.invokeLater(() -> logPanel.add("[BUS] " + tPacket));
+                }
+            } catch (IOException e) {
+                logPanel.add("[PORT 2 ERROR] Terminal bus tap failed: " + e.getMessage());
+                terminalConnected = false;
             }
-        } catch (IOException ignored) {
-            terminalConnected = false;
-        }
-    }
-
-    private void readLoop() {
-        try {
-            String line;
-            while (connected && (line = in_br.readLine()) != null) {
-                final String msg = line;
-                SwingUtilities.invokeLater(() -> handleTelemetry(msg));
-            }
-        } catch (IOException e) {
-            SwingUtilities.invokeLater(() -> {
-                setStatus("● DISCONNECTED", RED_C);
-                logPanel.add("[DISCONNECT] " + e.getMessage());
-                connected = false;
-            });
-        }
-    }
-
-    private void handleTelemetry(String msg) {
-        logPanel.add("← " + msg);
-
-        String state = jsonStr(msg, "state");
-        if (!state.isEmpty()) roomState = state.toUpperCase();
-
-        String dev = jsonStr(msg, "device");
-        if (!dev.isEmpty()) { deviceName = dev; deviceLabel.setText("Device: " + dev); }
-
-        pirActive        = jsonBool(msg, "pir",          pirActive);
-        doorOpen         = jsonBool(msg, "door",         doorOpen);
-        radarConf        = jsonDouble(msg, "radar",      radarConf);
-        lightOn          = jsonBool(msg, "light_relay",  lightOn);
-        hvacOn           = jsonBool(msg, "hvac_relay",   hvacOn);
-        hystRemainingSec = (long) jsonDouble(msg, "hysteresis_remaining_s", hystRemainingSec);
-    }
-
-    private void sendRaw(String json) {
-        if (out != null && connected) { out.println(json); logPanel.add("→ " + json); }
-        else logPanel.add("[WARN] Not connected.");
+        }, "DashboardTerminalBusReader").start();
     }
 
     private void disconnect() {
         connected = false;
-        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
-        setStatus("● DISCONNECTED", RED_C);
-        logPanel.add("Disconnected.");
+        terminalConnected = false;
+        try { if (socket != null) socket.close(); } catch (Exception ignored) {}
+        try { if (terminalSocket != null) terminalSocket.close(); } catch (Exception ignored) {}
+        statusLabel.setText("[DISCONNECTED]");
+        statusLabel.setForeground(RED_C);
+        logPanel.add("Disconnected from server.");
     }
 
-    // ─── UI Refresh timer (re-paints custom panels every 500 ms) ─────────────
+    private void parsePacket(String json) {
+        logPanel.add("<- " + json);
+        String st = jsonStr(json, "state");
+        if (!st.isEmpty()) roomState = st.toUpperCase();
+
+        pirActive        = jsonBool(json, "pir",         pirActive);
+        doorOpen         = jsonBool(json, "door",        doorOpen);
+        radarConf        = jsonDouble(json, "radar",     radarConf);
+        lightOn          = jsonBool(json, "light_relay", lightOn);
+        hvacOn           = jsonBool(json, "hvac_relay",  hvacOn);
+        hystRemainingSec = (long) jsonDouble(json, "hysteresis_remaining_s", hystRemainingSec);
+
+        String dev = jsonStr(json, "device");
+        if (!dev.isEmpty()) {
+            deviceName = dev;
+            deviceLabel.setText("Device: " + dev);
+        }
+    }
+
     private void startUiTimer() {
-        uiTimer = new javax.swing.Timer(500, e -> {
-            roomStatePanel.repaint();
-            sensorPanel.repaint();
-            relayPanel.repaint();
-            hystPanel.repaint();
-        });
+        uiTimer = new javax.swing.Timer(40, e -> repaint());
         uiTimer.start();
-    }
-
-    private void setStatus(String t, Color c) {
-        SwingUtilities.invokeLater(() -> { statusLabel.setText(t); statusLabel.setForeground(c); });
+        attemptConnect();
     }
 
     // ─── Custom drawing panels ────────────────────────────────────────────────
 
     /** Large centre panel — shows VACANT / OCCUPIED / HYSTERESIS with glossy 3D glass bubble */
     class RoomStatePanel extends JPanel {
-        RoomStatePanel() { setBackground(PANEL_BG); setBorder(titledBorder("🏠  ROOM STATE")); }
+        RoomStatePanel() { setBackground(PANEL_BG); setBorder(titledBorder("ROOM STATE")); }
 
         @Override
         protected void paintComponent(Graphics g) {
@@ -330,64 +413,66 @@ public class SmartRoomDashboard extends JFrame {
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
             int w = getWidth(), h = getHeight();
-            int cx = w / 2, cy = h / 2 - 12;
+            int cx = w / 2, cy = h / 2 - 14;
             int r = Math.min(w, h) / 3;
             if (r < 24) r = 24;
 
             Color stateBase = switch (roomState) {
                 case "OCCUPIED"   -> GREEN;
                 case "HYSTERESIS" -> AMBER;
+                case "SLEEP"      -> new Color(192, 132, 252);
                 default           -> DIM;
             };
 
-            // ── Ambient Glow Halo ──
+            // ── STEP 0: Ambient Glow Halo ──
             float pulse = (float) (0.85 + 0.15 * Math.sin(System.currentTimeMillis() / 250.0));
-            Color glowColor = new Color(stateBase.getRed(), stateBase.getGreen(), stateBase.getBlue(), (int) (48 * pulse));
+            Color glowColor = new Color(stateBase.getRed(), stateBase.getGreen(), stateBase.getBlue(), (int) (40 * pulse));
             g2.setColor(glowColor);
-            g2.fillOval(cx - r - 14, cy - r - 14, (r + 14) * 2, (r + 14) * 2);
+            g2.fillOval(cx - r - 12, cy - r - 12, (r + 12) * 2, (r + 12) * 2);
 
-            // ── Volumetric 3D Sphere Base with Radial Illumination ──
-            Point2D center = new Point2D.Float(cx, cy + r * 0.15f);
+            // ── STEP 1: Volumetric 3D Sphere Base with Radial Illumination ──
+            Point2D center = new Point2D.Float(cx, cy + r * 0.18f);
             float gradRadius = r * 1.15f;
-            float[] dist = {0.0f, 0.65f, 1.0f};
+            float[] dist = {0.0f, 0.50f, 0.85f, 1.0f};
 
-            Color brightCore = blendColor(stateBase, Color.WHITE, 0.40f);
-            Color darkRim    = blendColor(stateBase, Color.BLACK, 0.45f);
-            Color[] colors   = {brightCore, stateBase, darkRim};
+            Color brightCore = blendColor(stateBase, Color.WHITE, 0.38f);
+            Color darkTone   = blendColor(stateBase, Color.BLACK, 0.35f);
+            Color rimTone    = blendColor(stateBase, Color.BLACK, 0.65f);
+            Color[] colors   = {brightCore, stateBase, darkTone, rimTone};
 
             RadialGradientPaint rgp = new RadialGradientPaint(center, gradRadius, dist, colors);
             g2.setPaint(rgp);
             g2.fillOval(cx - r, cy - r, 2 * r, 2 * r);
 
-            // ── Bottom Bounce Light (Reflective Rim) ──
+            // ── STEP 4: Bottom Bounce Light (Reflective Rim) ──
             Shape oldClip = g2.getClip();
             g2.clip(new Ellipse2D.Float(cx - r, cy - r, 2 * r, 2 * r));
 
-            int bounceW = (int) (r * 1.3);
-            int bounceH = (int) (r * 0.45);
+            int bounceW = (int) (r * 1.45);
+            int bounceH = (int) (r * 0.55);
             int bounceX = cx - bounceW / 2;
-            int bounceY = cy + r - bounceH - (int) (r * 0.05);
+            int bounceY = cy + r - bounceH + (int) (r * 0.05);
 
             LinearGradientPaint bounceGrad = new LinearGradientPaint(
                 cx, bounceY, cx, bounceY + bounceH,
                 new float[]{0.0f, 1.0f},
-                new Color[]{new Color(255, 255, 255, 0), new Color(255, 255, 255, 80)}
+                new Color[]{new Color(255, 255, 255, 0), new Color(255, 255, 255, 120)}
             );
             g2.setPaint(bounceGrad);
             g2.fillOval(bounceX, bounceY, bounceW, bounceH);
 
-            // ── Top Glossy Specular Highlight (The 3D Glare) ──
-            int hlW = (int) (r * 1.36);
-            int hlH = (int) (r * 0.85);
+            // ── STEP 2 & 3: Top Glossy Specular Highlight (The 3D Glare) ──
+            int hlW = (int) (r * 1.42);
+            int hlH = (int) (r * 0.80);
             int hlX = cx - hlW / 2;
-            int hlY = cy - r + (int) (r * 0.06);
+            int hlY = cy - r + (int) (r * 0.05);
 
             LinearGradientPaint topGlare = new LinearGradientPaint(
                 cx, hlY, cx, hlY + hlH,
-                new float[]{0.0f, 0.35f, 1.0f},
+                new float[]{0.0f, 0.40f, 1.0f},
                 new Color[]{
-                    new Color(255, 255, 255, 235),
-                    new Color(255, 255, 255, 115),
+                    new Color(255, 255, 255, 245),
+                    new Color(255, 255, 255, 130),
                     new Color(255, 255, 255, 0)
                 }
             );
@@ -396,28 +481,36 @@ public class SmartRoomDashboard extends JFrame {
 
             g2.setClip(oldClip);
 
-            // ── Outer Crisp Glass Rim ──
-            g2.setColor(new Color(255, 255, 255, 85));
+            // ── STEP 5: Outer Crisp Glass Rim ──
+            g2.setColor(new Color(255, 255, 255, 105));
             g2.setStroke(new BasicStroke(1.5f));
             g2.drawOval(cx - r, cy - r, 2 * r, 2 * r);
 
-            // ── State Text Layer (Segoe UI Emoji) ──
-            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
+            // ── STATE TEXT: High-Contrast Translucent Dark Glass Pill ──
+            // Guarantees font color is NEVER similar or same as background!
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 17));
             FontMetrics fm = g2.getFontMetrics();
-            int tx = cx - fm.stringWidth(roomState) / 2;
-            int ty = cy + fm.getAscent() / 2 - 3;
+            int strW = fm.stringWidth(roomState);
+            int pillW = strW + 28;
+            int pillH = 32;
+            int pillX = cx - pillW / 2;
+            int pillY = cy - pillH / 2;
 
-            g2.setColor(new Color(0, 0, 0, 190));
-            g2.drawString(roomState, tx + 1, ty + 2);
-            g2.drawString(roomState, tx, ty + 1);
+            g2.setColor(new Color(6, 10, 18, 220));
+            g2.fillRoundRect(pillX, pillY, pillW, pillH, 16, 16);
+            g2.setColor(new Color(255, 255, 255, 80));
+            g2.drawRoundRect(pillX, pillY, pillW, pillH, 16, 16);
 
             g2.setColor(Color.WHITE);
+            int tx = cx - strW / 2;
+            int ty = cy + fm.getAscent() / 2 - 3;
             g2.drawString(roomState, tx, ty);
 
             // ── Subtitle Description Below Orb ──
             String desc = switch (roomState) {
                 case "OCCUPIED"   -> "Occupancy Active — Systems Running";
                 case "HYSTERESIS" -> "Grace Window — Awaiting Micro-Presence";
+                case "SLEEP"      -> "Sleep Mode — Vital Respiration Active";
                 default           -> "Room Empty — Energy Saving Standby";
             };
             g2.setColor(TEXT);
@@ -438,31 +531,33 @@ public class SmartRoomDashboard extends JFrame {
                          (int) Math.min(255, Math.max(0, b)));
     }
 
-    /** Three LED-style indicators for PIR, Door, Radar */
+    /** Three LED-style indicators for PIR, Door, Radar (No emojis) */
     class SensorPanel extends JPanel {
-        SensorPanel() { setBackground(PANEL_BG); setBorder(titledBorder("👁  SENSOR READINGS")); }
+        SensorPanel() { setBackground(PANEL_BG); setBorder(titledBorder("SENSOR READINGS")); }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = getWidth(), h = getHeight();
-            int step = h / 4;
 
-            drawSensorRow(g2, w, step,     "PIR Motion",        pirActive,          pirActive  ? GREEN : DIM, pirActive ? "MOTION" : "IDLE");
-            drawSensorRow(g2, w, step * 2, "Door Contact",       doorOpen,           doorOpen   ? AMBER : DIM, doorOpen  ? "OPEN"   : "CLOSED");
-            drawRadarRow( g2, w, step * 3, "mmWave Radar",       radarConf);
+            int w = getWidth(), h = getHeight();
+            int rowH = h / 3;
+
+            drawLedRow(g2, w, rowH / 2,         "PIR Motion",        pirActive, pirActive ? "ACTIVE" : "NO MOTION");
+            drawLedRow(g2, w, rowH + rowH / 2,     "Door Contact",      doorOpen,  doorOpen ? "OPEN" : "CLOSED");
+            drawRadarRow(g2, w, rowH * 2 + rowH / 2, "Radar Confidence", radarConf);
         }
 
-        private void drawSensorRow(Graphics2D g, int w, int y, String label, boolean active, Color c, String val) {
+        private void drawLedRow(Graphics2D g, int w, int y, String label, boolean active, String val) {
             int led = 16;
+            Color c = active ? GREEN : DIM;
             g.setColor(c);
             g.fillOval(20, y - led / 2, led, led);
             g.setColor(TEXT);
             g.setFont(new Font(FONT_FAMILY, Font.PLAIN, 13));
             g.drawString(label, 46, y + 5);
-            g.setColor(active ? c : DIM);
+            g.setColor(active ? GREEN : new Color(148, 163, 184));
             g.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
             FontMetrics fm = g.getFontMetrics();
             g.drawString(val, w - fm.stringWidth(val) - 16, y + 5);
@@ -486,14 +581,14 @@ public class SmartRoomDashboard extends JFrame {
             g.fillRoundRect(barX, y - 8, (int)(barW * conf / 100.0), 14, 6, 6);
             g.setColor(TEXT);
             g.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-            String pctStr = String.format("%.0f%%", conf);
+            String pctStr = String.format(Locale.US, "%.0f%%", conf);
             g.drawString(pctStr, w - 40, y + 5);
         }
     }
 
-    /** Light and HVAC relay output indicators */
+    /** Light and HVAC relay output indicators (No emojis) */
     class RelayPanel extends JPanel {
-        RelayPanel() { setBackground(PANEL_BG); setBorder(titledBorder("⚡  ACTUATOR OUTPUTS")); }
+        RelayPanel() { setBackground(PANEL_BG); setBorder(titledBorder("ACTUATOR OUTPUTS")); }
 
         @Override
         protected void paintComponent(Graphics g) {
@@ -501,39 +596,41 @@ public class SmartRoomDashboard extends JFrame {
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int w = getWidth(), h = getHeight();
-            drawRelay(g2, w / 4,     h / 2, "💡 LIGHTS",   lightOn, GREEN);
-            drawRelay(g2, 3 * w / 4, h / 2, "❄  HVAC",     hvacOn,  ACCENT);
+            drawRelay(g2, w / 4,     h / 2, "LIGHTS (GPIO 21)",   lightOn, GREEN);
+            drawRelay(g2, 3 * w / 4, h / 2, "HVAC / AC (GPIO 22)", hvacOn,  ACCENT);
         }
 
         private void drawRelay(Graphics2D g, int cx, int cy, String label, boolean on, Color c) {
-            int r = Math.min(50, Math.min(cx, cy) - 20);
+            int r = Math.min(48, Math.min(cx, cy) - 22);
             // Glow
             if (on) {
-                for (int i = r + 20; i > r; i -= 2) {
-                    float a = (r + 20f - i) / 25f * 0.2f;
+                for (int i = r + 18; i > r; i -= 2) {
+                    float a = (r + 18f - i) / 22f * 0.25f;
                     g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), (int)(a * 255)));
                     g.fillOval(cx - i, cy - i, 2 * i, 2 * i);
                 }
             }
-            g.setColor(on ? c : DIM);
+            g.setColor(on ? c : new Color(30, 41, 59));
             g.fillOval(cx - r, cy - r, 2 * r, 2 * r);
 
-            g.setColor(BG);
-            g.setFont(new Font(FONT_FAMILY, Font.BOLD, on ? 11 : 10));
+            // High contrast text inside relay circle: Dark navy on bright green/cyan, or silver on dark slate
+            g.setColor(on ? new Color(15, 23, 42) : new Color(226, 232, 240));
+            g.setFont(new Font(FONT_FAMILY, Font.BOLD, on ? 13 : 12));
             String status = on ? "ON" : "OFF";
             FontMetrics fm = g.getFontMetrics();
             g.drawString(status, cx - fm.stringWidth(status) / 2, cy + fm.getAscent() / 3);
 
-            g.setColor(on ? c : DIM);
-            g.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
+            // Label below
+            g.setColor(TEXT);
+            g.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             fm = g.getFontMetrics();
-            g.drawString(label, cx - fm.stringWidth(label) / 2, cy + r + 18);
+            g.drawString(label, cx - fm.stringWidth(label) / 2, cy + r + 20);
         }
     }
 
-    /** Hysteresis countdown arc */
+    /** Hysteresis countdown arc (No emojis) */
     class HysteresisPanel extends JPanel {
-        HysteresisPanel() { setBackground(PANEL_BG); setBorder(titledBorder("⏱  GRACE TIMER (Hysteresis)")); }
+        HysteresisPanel() { setBackground(PANEL_BG); setBorder(titledBorder("GRACE TIMER (Hysteresis)")); }
 
         @Override
         protected void paintComponent(Graphics g) {
@@ -545,7 +642,7 @@ public class SmartRoomDashboard extends JFrame {
             int r = Math.min(cx, cy) - 20;
 
             boolean inHyst = roomState.equals("HYSTERESIS");
-            long totalSec  = 900; // Default 15 min — override from telemetry if needed
+            long totalSec  = 30; // 30s grace window
             double pct     = inHyst && totalSec > 0
                 ? Math.min(1.0, (double) hystRemainingSec / totalSec) : 0.0;
 
@@ -554,7 +651,7 @@ public class SmartRoomDashboard extends JFrame {
             g2.setStroke(new BasicStroke(12, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g2.drawOval(cx - r, cy - r, 2 * r, 2 * r);
 
-            // Countdown arc (shrinks as time runs out)
+            // Countdown arc
             if (inHyst && pct > 0) {
                 g2.setColor(AMBER);
                 int angle = (int)(pct * 360);
@@ -562,34 +659,34 @@ public class SmartRoomDashboard extends JFrame {
             }
 
             g2.setStroke(new BasicStroke(1));
-            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
             FontMetrics fm = g2.getFontMetrics();
 
             if (inHyst) {
-                long mins = hystRemainingSec / 60, secs = hystRemainingSec % 60;
-                String timeStr = String.format("%02d:%02d", mins, secs);
+                String timeStr = hystRemainingSec + " s";
                 g2.setColor(AMBER);
-                g2.drawString(timeStr, cx - fm.stringWidth(timeStr) / 2, cy + 6);
+                g2.drawString(timeStr, cx - fm.stringWidth(timeStr) / 2, cy + 4);
                 g2.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
                 fm = g2.getFontMetrics();
-                String sub = "remaining";
+                String sub = "Grace Countdown";
+                g2.setColor(TEXT);
                 g2.drawString(sub, cx - fm.stringWidth(sub) / 2, cy + 22);
             } else {
-                g2.setColor(DIM);
-                String idle = roomState.equals("OCCUPIED") ? "OCCUPIED" : "INACTIVE";
+                g2.setColor(TEXT);
+                String idle = roomState.equals("OCCUPIED") ? "SAFE" : "IDLE";
                 g2.drawString(idle, cx - fm.stringWidth(idle) / 2, cy + 6);
             }
         }
     }
 
-    /** Scrolling event log */
+    /** Scrolling event log (No emojis) */
     class EventLogPanel extends JPanel {
         private final DefaultListModel<String> model = new DefaultListModel<>();
         private final JList<String>            list  = new JList<>(model);
 
         EventLogPanel() {
             setLayout(new BorderLayout());
-            setBorder(titledBorder("📋  EVENT LOG"));
+            setBorder(titledBorder("EVENT LOG"));
             setBackground(PANEL_BG);
             list.setFont(new Font(FONT_FAMILY, Font.PLAIN, 11));
             list.setBackground(new Color(14, 14, 22));
@@ -609,23 +706,38 @@ public class SmartRoomDashboard extends JFrame {
 
     private JButton dashBtn(String text, Color c) {
         JButton b = new JButton(text);
-        b.setBackground(c); b.setForeground(Color.WHITE);
+        b.setBackground(c);
+        // Contrast check: on bright green/amber, dark text; on red/accent, white text
+        if (c.equals(GREEN) || c.equals(AMBER)) {
+            b.setForeground(new Color(10, 15, 26));
+        } else {
+            b.setForeground(Color.WHITE);
+        }
         b.setFocusPainted(false);
         b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        b.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
+        b.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
         return b;
     }
 
     private static JToggleButton styledToggle(String tag, String onTxt, String offTxt) {
         JToggleButton tb = new JToggleButton(tag + ": " + offTxt);
-        tb.setBackground(DIM); tb.setForeground(TEXT);
+        tb.setBackground(new Color(30, 41, 59));
+        tb.setForeground(TEXT);
         tb.setFocusPainted(false);
         tb.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         tb.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
         tb.addChangeListener(e -> {
             boolean sel = tb.isSelected();
             tb.setText(tag + ": " + (sel ? onTxt : offTxt));
-            tb.setBackground(sel ? new Color(50, 180, 80) : DIM);
+            // High contrast: When active, bright neon green background with dark navy text!
+            // When inactive, dark slate background with crisp white text!
+            if (sel) {
+                tb.setBackground(new Color(34, 197, 94));
+                tb.setForeground(new Color(10, 15, 26));
+            } else {
+                tb.setBackground(new Color(30, 41, 59));
+                tb.setForeground(TEXT);
+            }
         });
         return tb;
     }
@@ -659,27 +771,9 @@ public class SmartRoomDashboard extends JFrame {
 
     // ─── Entry point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
-        String host = "localhost";
-        int port = -1;
-        if (args.length >= 2) {
-            host = args[0];
-            port = Integer.parseInt(args[1]);
-        } else if (args.length == 1 && !args[0].equalsIgnoreCase("--prompt")) {
-            port = Integer.parseInt(args[0]);
-        }
-
-        if (port <= 0) {
-            String pStr = JOptionPane.showInputDialog(null,
-                "Enter Telemetry Stream Port noted down from the backend terminal:\n(Leave blank to exit)",
-                "Smart Room Dashboard — Port Input",
-                JOptionPane.QUESTION_MESSAGE);
-            if (pStr == null || pStr.trim().isEmpty()) return;
-            try { port = Integer.parseInt(pStr.trim()); } catch (Exception e) { return; }
-        }
-
+        String host = args.length > 0 ? args[0] : "localhost";
+        int    port = args.length > 1 ? Integer.parseInt(args[1]) : 9090;
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
-        final String fHost = host;
-        final int fPort = port;
-        SwingUtilities.invokeLater(() -> new SmartRoomDashboard(fHost, fPort));
+        SwingUtilities.invokeLater(() -> new SmartRoomDashboard(host, port));
     }
 }

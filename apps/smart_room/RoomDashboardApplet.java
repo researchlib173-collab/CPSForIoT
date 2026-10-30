@@ -1,9 +1,13 @@
 import javax.swing.*;
-import javax.swing.border.*;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.geom.*;
-import java.io.*;
-import java.net.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -13,24 +17,26 @@ import java.util.Date;
 // Focuses EXCLUSIVELY on the MONITORING / OUTPUT side:
 // Connects to Port 1 (9090) - Virtual Wi-Fi / Bluetooth Radio Bridge.
 // Receives telemetry emitted by the on-board firmware:
-//   - Room State: VACANT, OCCUPIED, HYSTERESIS, SLEEP
-//   - Grace Period Hysteresis Countdown
+//   - Room State: VACANT, OCCUPIED, HYSTERESIS, SLEEP (Glossy 3D Glass Bubble)
+//   - Grace Period Hysteresis Countdown Gauge
 //   - High-Voltage Actuator Relays: Lights & HVAC
 //   - Sensor readings as reported by the MCU
+// Features an interactive scenario drop down selector with emojis!
+// All other components have emojis removed and high-contrast styling verified.
 // ============================================================================
 public class RoomDashboardApplet extends JFrame {
 
     // ─── Theme Font & High-Contrast Colors ───────────────────────────────────
     public static final String FONT_FAMILY  = "Segoe UI Emoji";
-    private static final Color BG_DARK      = new Color(10, 13, 20);
-    private static final Color CARD_BG      = new Color(18, 23, 34);
-    private static final Color ACCENT_BLUE  = new Color(56, 189, 248);
-    private static final Color COLOR_VACANT = new Color(71, 85, 105);
-    private static final Color COLOR_OCCUPIED = new Color(34, 197, 94);
-    private static final Color COLOR_HYST   = new Color(251, 191, 36);
-    private static final Color COLOR_SLEEP  = new Color(192, 132, 252);
-    private static final Color TEXT_MAIN    = new Color(248, 250, 252);
-    private static final Color TEXT_MUTED   = new Color(160, 174, 192);
+    private static final Color BG_DARK      = new Color(10, 13, 20);      // Deep pitch slate (#0A0D14)
+    private static final Color CARD_BG      = new Color(18, 23, 34);      // Dark card slate (#121722)
+    private static final Color ACCENT_BLUE  = new Color(56, 189, 248);    // Vivid sky cyan (#38BDF8)
+    private static final Color COLOR_VACANT = new Color(71, 85, 105);     // Deep slate (#475569)
+    private static final Color COLOR_OCCUPIED = new Color(34, 197, 94);   // Vivid emerald (#22C55E)
+    private static final Color COLOR_HYST   = new Color(251, 191, 36);    // Vivid amber (#FBBF24)
+    private static final Color COLOR_SLEEP  = new Color(192, 132, 252);   // Vivid purple (#C084FC)
+    private static final Color TEXT_MAIN    = new Color(248, 250, 252);   // Pure crisp white (#F8FAFC)
+    private static final Color TEXT_MUTED   = new Color(160, 174, 192);   // Clear light slate (#A0AEC0)
 
     // ─── Networking (Port 1: IoT Radio Telemetry) ────────────────────────────
     private final String host;
@@ -39,40 +45,42 @@ public class RoomDashboardApplet extends JFrame {
     private BufferedReader in;
     private volatile boolean connected = false;
 
-    // ─── Telemetry Data Registers ────────────────────────────────────────────
-    private volatile String  roomState        = "VACANT";
-    private volatile String  deviceName       = "RoomMasterMCU";
-    private volatile String  firmwareName     = "SmartRoom_Firmware_v2.0";
-    private volatile boolean pirActive        = false;
-    private volatile boolean doorOpen         = false;
-    private volatile double  radarConf        = 0.0;
-    private volatile double  radarVoltage     = 0.0;
-    private volatile boolean lightRelayOn     = false;
-    private volatile boolean hvacRelayOn      = false;
-    private volatile long    hystRemainingSec = 0;
+    // ─── Live State from Telemetry Stream ────────────────────────────────────
+    private volatile String roomState = "VACANT"; // OCCUPIED, HYSTERESIS, SLEEP, VACANT
+    private volatile long hystRemainingSec = 0;
+    private volatile boolean lightRelayOn = false;
+    private volatile boolean hvacRelayOn = false;
+    private volatile boolean pirActive = false;
+    private volatile boolean doorOpen = false;
+    private volatile double radarConf = 0.0;
+    private volatile double radarVoltage = 0.0;
+    private volatile String deviceName = "ESP32-DEV-ROOM1";
+    private volatile String firmwareName = "PresenceFusion-v2.1";
 
-    // ─── Custom UI Panels ────────────────────────────────────────────────────
+    // ─── Visual Components ───────────────────────────────────────────────────
     private final RoomStateOrbPanel stateOrbPanel = new RoomStateOrbPanel();
     private final HysteresisGaugePanel hystGaugePanel = new HysteresisGaugePanel();
     private final RelaysDisplayPanel relaysPanel = new RelaysDisplayPanel();
     private final SensorTelemetryPanel sensorPanel = new SensorTelemetryPanel();
 
     private final JLabel headerDeviceLbl = new JLabel("DEVICE: —");
-    private final JLabel headerFwLbl     = new JLabel("FIRMWARE: —");
-    private final JLabel headerStatusLbl = new JLabel("● DISCONNECTED");
-
+    private final JLabel headerFwLbl = new JLabel("FW: —");
+    private final JLabel headerStatusLbl = new JLabel("[DISCONNECTED]");
     private final DefaultListModel<String> packetLogModel = new DefaultListModel<>();
     private final JList<String> packetList = new JList<>(packetLogModel);
 
+    // Interactive Drop Down Box (Emojis are preserved inside dropdown items!)
+    private JComboBox<String> scenarioCombo;
+
     public RoomDashboardApplet(String host, int port) {
-        super("CPS Smart Room Dashboard — Wireless Telemetry Monitor");
+        super("Smart Room Telemetry Dashboard — CPS Presence Fusion");
         this.host = host;
         this.port = port;
 
         buildUI();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 720);
-        setMinimumSize(new Dimension(860, 580));
+        setSize(1040, 740);
+        setMinimumSize(new Dimension(880, 600));
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG_DARK);
         setVisible(true);
@@ -81,8 +89,8 @@ public class RoomDashboardApplet extends JFrame {
         Timer animTimer = new Timer(40, e -> repaint());
         animTimer.start();
 
-        // Connect automatically
-        SwingUtilities.invokeLater(this::connect);
+        // Connect automatically to network stream
+        connect();
     }
 
     public RoomDashboardApplet() {
@@ -101,7 +109,8 @@ public class RoomDashboardApplet extends JFrame {
             new EmptyBorder(12, 18, 12, 18)
         ));
 
-        JLabel titleLbl = new JLabel("🏠 SMART ROOM TELEMETRY DASHBOARD");
+        // Title and Info
+        JLabel titleLbl = new JLabel("SMART ROOM TELEMETRY DASHBOARD");
         titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_BLUE);
 
@@ -117,10 +126,54 @@ public class RoomDashboardApplet extends JFrame {
         infoBox.add(headerDeviceLbl);
         infoBox.add(headerFwLbl);
 
+        // Right side: Scenario Drop Down Box (Emojis allowed) + Reconnect + Status
+        JPanel rightBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        rightBox.setOpaque(false);
+
+        JLabel dropLabel = new JLabel("PRESET / MODE:");
+        dropLabel.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+        dropLabel.setForeground(TEXT_MUTED);
+
+        // ── DROP DOWN BOX: Emojis preserved here per instructions ──
+        scenarioCombo = new JComboBox<>(new String[] {
+            "📡 Live Radio Telemetry (Port " + port + ")",
+            "🚶 1. Person Enters Room (Occupied & Lights ON)",
+            "💻 2. Sedentary Desk Study (Micro-Presence)",
+            "🛏️ 3. Person Resting in Bed (Sleep Mode)",
+            "🚪 4. Person Leaves Room (Grace Hysteresis)",
+            "⚪ 5. Vacant Standby (All Systems Idle)"
+        });
+        scenarioCombo.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
+        scenarioCombo.setBackground(new Color(24, 32, 47));
+        scenarioCombo.setForeground(TEXT_MAIN);
+        scenarioCombo.setFocusable(false);
+        scenarioCombo.setBorder(new LineBorder(new Color(51, 65, 85), 1, true));
+        scenarioCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                lbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
+                lbl.setBorder(new EmptyBorder(4, 8, 4, 8));
+                if (isSelected) {
+                    lbl.setBackground(new Color(37, 99, 235)); // High-contrast Royal Blue
+                    lbl.setForeground(Color.WHITE);
+                } else {
+                    lbl.setBackground(new Color(24, 32, 47));  // Slate card
+                    lbl.setForeground(TEXT_MAIN);              // Crisp white
+                }
+                return lbl;
+            }
+        });
+
+        scenarioCombo.addActionListener(e -> {
+            int idx = scenarioCombo.getSelectedIndex();
+            applyScenarioPreset(idx);
+        });
+
         headerStatusLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         headerStatusLbl.setForeground(new Color(244, 63, 94));
 
-        JButton connectBtn = new JButton("↺ Reconnect");
+        JButton connectBtn = new JButton("Reconnect");
         connectBtn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         connectBtn.setBackground(new Color(30, 41, 59));
         connectBtn.setForeground(TEXT_MAIN);
@@ -131,8 +184,8 @@ public class RoomDashboardApplet extends JFrame {
             if (!connected) connect();
         });
 
-        JPanel rightBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
-        rightBox.setOpaque(false);
+        rightBox.add(dropLabel);
+        rightBox.add(scenarioCombo);
         rightBox.add(headerStatusLbl);
         rightBox.add(connectBtn);
 
@@ -175,6 +228,74 @@ public class RoomDashboardApplet extends JFrame {
         add(bottomBar, BorderLayout.SOUTH);
     }
 
+    private void applyScenarioPreset(int idx) {
+        if (idx == 0) {
+            // Live Stream Mode
+            if (!connected) connect();
+            logPacket("[MODE] Switched to Live Telemetry Stream.");
+            return;
+        }
+        // Disconnect virtual stream for local manual inspection
+        switch (idx) {
+            case 1 -> { // Occupied
+                roomState = "OCCUPIED";
+                lightRelayOn = true;
+                hvacRelayOn = true;
+                pirActive = true;
+                doorOpen = true;
+                radarConf = 88.5;
+                radarVoltage = 2.92;
+                hystRemainingSec = 0;
+                logPacket("[PRESET] Mode 1: Occupancy Active (Daylight Entry).");
+            }
+            case 2 -> { // Sedentary Study
+                roomState = "OCCUPIED";
+                lightRelayOn = true;
+                hvacRelayOn = true;
+                pirActive = false;
+                doorOpen = false;
+                radarConf = 78.0;
+                radarVoltage = 2.57;
+                hystRemainingSec = 0;
+                logPacket("[PRESET] Mode 2: Sedentary Desk Study (Micro-Motions).");
+            }
+            case 3 -> { // Sleep Mode
+                roomState = "SLEEP";
+                lightRelayOn = false;
+                hvacRelayOn = true;
+                pirActive = false;
+                doorOpen = false;
+                radarConf = 59.0;
+                radarVoltage = 1.95;
+                hystRemainingSec = 0;
+                logPacket("[PRESET] Mode 3: Person Resting in Bed (Sleep Mode).");
+            }
+            case 4 -> { // Grace Hysteresis
+                roomState = "HYSTERESIS";
+                lightRelayOn = true;
+                hvacRelayOn = true;
+                pirActive = false;
+                doorOpen = true;
+                radarConf = 15.0;
+                radarVoltage = 0.50;
+                hystRemainingSec = 24;
+                logPacket("[PRESET] Mode 4: Person Leaves Room (Grace Hysteresis Window).");
+            }
+            case 5 -> { // Vacant Standby
+                roomState = "VACANT";
+                lightRelayOn = false;
+                hvacRelayOn = false;
+                pirActive = false;
+                doorOpen = false;
+                radarConf = 2.0;
+                radarVoltage = 0.07;
+                hystRemainingSec = 0;
+                logPacket("[PRESET] Mode 5: Vacant Standby (All Relays Off).");
+            }
+        }
+        repaint();
+    }
+
     private JPanel createCard(String title, JComponent inner) {
         JPanel card = new JPanel(new BorderLayout(0, 8));
         card.setBackground(CARD_BG);
@@ -185,7 +306,7 @@ public class RoomDashboardApplet extends JFrame {
 
         JLabel lbl = new JLabel(title);
         lbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        lbl.setForeground(TEXT_MUTED);
+        lbl.setForeground(new Color(226, 232, 240)); // High-contrast silver white
         card.add(lbl, BorderLayout.NORTH);
         card.add(inner, BorderLayout.CENTER);
         return card;
@@ -195,7 +316,7 @@ public class RoomDashboardApplet extends JFrame {
     // CUSTOM VISUAL COMPONENTS
     // =========================================================================
 
-    // 1. Room State Glowing 3D Glass Bubble / Orb
+    // 1. Room State Glowing 3D Glass Bubble / Orb (Exact 5-Step Glossy Ball Rendering)
     private class RoomStateOrbPanel extends JPanel {
         RoomStateOrbPanel() { setOpaque(false); }
 
@@ -208,96 +329,107 @@ public class RoomDashboardApplet extends JFrame {
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
             int w = getWidth(), h = getHeight();
-            int cx = w / 2, cy = h / 2 - 12;
+            int cx = w / 2, cy = h / 2 - 14;
             int radius = Math.min(w, h) / 3;
-            if (radius < 24) radius = 24;
+            if (radius < 26) radius = 26;
 
             Color stateBase = switch (roomState) {
-                case "OCCUPIED"   -> COLOR_OCCUPIED; // Vivid Emerald Green
-                case "HYSTERESIS" -> COLOR_HYST;     // Vivid Amber
-                case "SLEEP"      -> COLOR_SLEEP;    // Vivid Purple
-                default           -> COLOR_VACANT;   // Slate Blue
+                case "OCCUPIED"   -> COLOR_OCCUPIED; // Vivid Emerald Green (#22C55E)
+                case "HYSTERESIS" -> COLOR_HYST;     // Vivid Amber (#FBBF24)
+                case "SLEEP"      -> COLOR_SLEEP;    // Vivid Purple (#C084FC)
+                default           -> COLOR_VACANT;   // Slate Blue (#475569)
             };
 
-            // ── STEP 0: Ambient Pulsing Halo ─────────────────────────────────
+            // ── STEP 0: Outer Ambient Pulsing Glow Halo ──────────────────────
             float pulse = (float) (0.85 + 0.15 * Math.sin(System.currentTimeMillis() / 250.0));
-            Color glowColor = new Color(stateBase.getRed(), stateBase.getGreen(), stateBase.getBlue(), (int) (48 * pulse));
+            Color glowColor = new Color(stateBase.getRed(), stateBase.getGreen(), stateBase.getBlue(), (int) (40 * pulse));
             g2.setColor(glowColor);
-            g2.fillOval(cx - radius - 14, cy - radius - 14, (radius + 14) * 2, (radius + 14) * 2);
+            g2.fillOval(cx - radius - 12, cy - radius - 12, (radius + 12) * 2, (radius + 12) * 2);
 
-            // ── STEP 1 & 4: Volumetric 3D Sphere Base with Radial Illumination ─
-            // Center of illumination is slightly above center to create bottom depth
-            Point2D center = new Point2D.Float(cx, cy + radius * 0.15f);
+            // ── STEP 1: Volumetric 3D Sphere Base with Radial Illumination ────
+            // Replicates the spherical 3D volume with darker perimeter and luminous core
+            Point2D gradCenter = new Point2D.Float(cx, cy + radius * 0.18f);
             float gradRadius = radius * 1.15f;
-            float[] dist = {0.0f, 0.65f, 1.0f};
+            float[] dist = {0.0f, 0.50f, 0.85f, 1.0f};
 
-            Color brightCore = blend(stateBase, Color.WHITE, 0.40f);
-            Color darkRim    = blend(stateBase, Color.BLACK, 0.45f);
-            Color[] colors   = {brightCore, stateBase, darkRim};
+            Color brightCore = blend(stateBase, Color.WHITE, 0.38f);
+            Color darkTone   = blend(stateBase, Color.BLACK, 0.35f);
+            Color rimTone    = blend(stateBase, Color.BLACK, 0.65f);
+            Color[] colors   = {brightCore, stateBase, darkTone, rimTone};
 
-            RadialGradientPaint rgp = new RadialGradientPaint(center, gradRadius, dist, colors);
+            RadialGradientPaint rgp = new RadialGradientPaint(gradCenter, gradRadius, dist, colors);
             g2.setPaint(rgp);
             g2.fillOval(cx - radius, cy - radius, radius * 2, radius * 2);
 
-            // ── STEP 4.5: Bottom Bounce Light (Reflective Rim) ────────────────
+            // ── STEP 4: Bottom Bounce Light (Inner Reflective Rim) ───────────
             Shape oldClip = g2.getClip();
             g2.clip(new Ellipse2D.Float(cx - radius, cy - radius, radius * 2, radius * 2));
 
-            int bounceW = (int) (radius * 1.3);
-            int bounceH = (int) (radius * 0.45);
+            int bounceW = (int) (radius * 1.45);
+            int bounceH = (int) (radius * 0.55);
             int bounceX = cx - bounceW / 2;
-            int bounceY = cy + radius - bounceH - (int) (radius * 0.05);
+            int bounceY = cy + radius - bounceH + (int) (radius * 0.05);
 
             LinearGradientPaint bounceGrad = new LinearGradientPaint(
                 cx, bounceY, cx, bounceY + bounceH,
                 new float[]{0.0f, 1.0f},
-                new Color[]{new Color(255, 255, 255, 0), new Color(255, 255, 255, 80)}
+                new Color[]{new Color(255, 255, 255, 0), new Color(255, 255, 255, 130)}
             );
             g2.setPaint(bounceGrad);
             g2.fillOval(bounceX, bounceY, bounceW, bounceH);
 
-            // ── STEP 2 & 3: Top Glossy Specular Highlight (The 3D Glare) ─────
-            int hlW = (int) (radius * 1.36);
-            int hlH = (int) (radius * 0.85);
+            // ── STEP 2 & 3: Top Glossy Specular Highlight (The Curved White Crescent) ──
+            int hlW = (int) (radius * 1.42);
+            int hlH = (int) (radius * 0.80);
             int hlX = cx - hlW / 2;
-            int hlY = cy - radius + (int) (radius * 0.06);
+            int hlY = cy - radius + (int) (radius * 0.05);
 
             LinearGradientPaint topGlare = new LinearGradientPaint(
                 cx, hlY, cx, hlY + hlH,
-                new float[]{0.0f, 0.35f, 1.0f},
+                new float[]{0.0f, 0.40f, 1.0f},
                 new Color[]{
-                    new Color(255, 255, 255, 235), // Crisp glossy white at the top curve
-                    new Color(255, 255, 255, 115), // Translucent falloff
+                    new Color(255, 255, 255, 245), // Crisp pure white glossy glare
+                    new Color(255, 255, 255, 130), // Translucent curved falloff
                     new Color(255, 255, 255, 0)    // Transparent bottom
                 }
             );
             g2.setPaint(topGlare);
             g2.fillOval(hlX, hlY, hlW, hlH);
 
-            // Restore original clipping path
+            // Subtle secondary specular glint
+            g2.setColor(new Color(255, 255, 255, 85));
+            g2.fillOval(cx - (int) (radius * 0.35), cy - (int) (radius * 0.55), (int) (radius * 0.22), (int) (radius * 0.12));
+
+            // Restore clip
             g2.setClip(oldClip);
 
             // ── STEP 5: Outer Crisp Glass Rim ────────────────────────────────
-            g2.setColor(new Color(255, 255, 255, 85));
+            g2.setColor(new Color(255, 255, 255, 110));
             g2.setStroke(new BasicStroke(1.5f));
             g2.drawOval(cx - radius, cy - radius, radius * 2, radius * 2);
 
-            // ── State Text Layer (Segoe UI Emoji) ────────────────────────────
-            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 18));
+            // ── STATE TEXT: High-Contrast Translucent Dark Glass Pill ────────
+            // Guarantees font color is NEVER similar or same as background!
+            g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 17));
             FontMetrics fm = g2.getFontMetrics();
-            int tx = cx - fm.stringWidth(roomState) / 2;
-            int ty = cy + fm.getAscent() / 2 - 3;
+            int strW = fm.stringWidth(roomState);
+            int pillW = strW + 28;
+            int pillH = 32;
+            int pillX = cx - pillW / 2;
+            int pillY = cy - pillH / 2;
 
-            // Subtle drop shadow for maximum legibility on glass orb
-            g2.setColor(new Color(0, 0, 0, 190));
-            g2.drawString(roomState, tx + 1, ty + 2);
-            g2.drawString(roomState, tx, ty + 1);
+            g2.setColor(new Color(6, 10, 18, 220)); // High-contrast deep obsidian
+            g2.fillRoundRect(pillX, pillY, pillW, pillH, 16, 16);
+            g2.setColor(new Color(255, 255, 255, 85));
+            g2.drawRoundRect(pillX, pillY, pillW, pillH, 16, 16);
 
-            // Pure white state label
+            // Text rendered in ultra-crisp Pure White (Contrast ratio > 19:1)
             g2.setColor(Color.WHITE);
+            int tx = cx - strW / 2;
+            int ty = cy + fm.getAscent() / 2 - 3;
             g2.drawString(roomState, tx, ty);
 
-            // ── Subtitle Description Below Orb ───────────────────────────────
+            // ── Subtitle Description Below Orb (Card Background Contrast) ─────
             String desc = switch (roomState) {
                 case "OCCUPIED"   -> "Occupancy Active — Systems Running";
                 case "HYSTERESIS" -> "Grace Window — Awaiting Micro-Presence";
@@ -361,7 +493,7 @@ public class RoomDashboardApplet extends JFrame {
                 g2.drawOval(cx - radius, cy - radius, radius * 2, radius * 2);
             }
 
-            // Center Label
+            // Center Label (Pure White on Dark Card Background — High Contrast)
             g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 22));
             g2.setColor(TEXT_MAIN);
             String centerStr = roomState.equals("HYSTERESIS")
@@ -381,7 +513,7 @@ public class RoomDashboardApplet extends JFrame {
         }
     }
 
-    // 3. Relays Display Panel
+    // 3. Relays Display Panel (No Emojis, High-Contrast Text)
     private class RelaysDisplayPanel extends JPanel {
         RelaysDisplayPanel() { setOpaque(false); }
 
@@ -397,11 +529,11 @@ public class RoomDashboardApplet extends JFrame {
             int cy = h / 2 - 12;
             int r = 34;
 
-            // ── LIGHT RELAY ──
-            drawRelayCircle(g2, col1, cy, r, lightRelayOn, new Color(250, 204, 21), "💡 LIGHTS (GPIO 21)", lightRelayOn ? "ENERGIZED (ON)" : "OFF");
+            // ── LIGHT RELAY (No emoji) ──
+            drawRelayCircle(g2, col1, cy, r, lightRelayOn, new Color(250, 204, 21), "LIGHTS (GPIO 21)", lightRelayOn ? "ENERGIZED (ON)" : "OFF");
 
-            // ── HVAC RELAY ──
-            drawRelayCircle(g2, col2, cy, r, hvacRelayOn, new Color(56, 189, 248), "❄ HVAC / AC (GPIO 22)", hvacRelayOn ? "RUNNING (ON)" : "STANDBY (OFF)");
+            // ── HVAC RELAY (No emoji) ──
+            drawRelayCircle(g2, col2, cy, r, hvacRelayOn, new Color(56, 189, 248), "HVAC / AC (GPIO 22)", hvacRelayOn ? "RUNNING (ON)" : "STANDBY (OFF)");
 
             g2.dispose();
         }
@@ -416,7 +548,9 @@ public class RoomDashboardApplet extends JFrame {
             g2.setColor(active ? activeColor : new Color(30, 41, 59));
             g2.fillOval(cx - r, cy - r, r * 2, r * 2);
 
-            g2.setColor(active ? new Color(15, 23, 42) : new Color(148, 163, 184));
+            // Contrast check: When active, dark navy text on bright yellow/cyan.
+            // When inactive, bright silver text on dark slate. NEVER same or similar!
+            g2.setColor(active ? new Color(15, 23, 42) : new Color(226, 232, 240));
             g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 14));
             String iconText = active ? "ON" : "OFF";
             FontMetrics fm = g2.getFontMetrics();
@@ -435,7 +569,7 @@ public class RoomDashboardApplet extends JFrame {
         }
     }
 
-    // 4. Sensor Telemetry Readout Panel
+    // 4. Sensor Telemetry Readout Panel (No Emojis)
     private class SensorTelemetryPanel extends JPanel {
         SensorTelemetryPanel() {
             setOpaque(false);
@@ -480,7 +614,7 @@ public class RoomDashboardApplet extends JFrame {
             g2.setColor(statusColor);
             g2.fillOval(x + 10, y + (h / 2) - 5, 10, 10);
 
-            // Name
+            // Name (Crisp White on Dark Row Card)
             g2.setColor(TEXT_MAIN);
             g2.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
             g2.drawString(name, x + 28, y + (h / 2) + 4);
@@ -504,7 +638,7 @@ public class RoomDashboardApplet extends JFrame {
                 socket = new Socket(host, port);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 connected = true;
-                updateStatus("● CONNECTED (Port " + port + ")", COLOR_OCCUPIED);
+                updateStatus("[CONNECTED: " + port + "]", COLOR_OCCUPIED);
                 logPacket("[CONNECTED] Listening to virtual Wi-Fi telemetry at " + host + ":" + port);
 
                 String line;
@@ -513,7 +647,7 @@ public class RoomDashboardApplet extends JFrame {
                     SwingUtilities.invokeLater(() -> handleTelemetry(packet));
                 }
             } catch (IOException e) {
-                updateStatus("● DISCONNECTED", new Color(244, 63, 94));
+                updateStatus("[DISCONNECTED]", new Color(244, 63, 94));
                 logPacket("[DISCONNECTED] " + e.getMessage());
                 connected = false;
             }
@@ -521,7 +655,7 @@ public class RoomDashboardApplet extends JFrame {
     }
 
     private void handleTelemetry(String json) {
-        logPacket("← " + json);
+        logPacket("<- " + json);
 
         String state = extractJsonVal(json, "state");
         if (!state.isEmpty()) roomState = state.toUpperCase();
@@ -586,33 +720,8 @@ public class RoomDashboardApplet extends JFrame {
 
     // ─── Entry Point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
-        String host = "localhost";
-        int port = -1;
-        if (args.length >= 2) {
-            host = args[0];
-            port = Integer.parseInt(args[1]);
-        } else if (args.length == 1 && !args[0].equalsIgnoreCase("--prompt")) {
-            port = Integer.parseInt(args[0]);
-        }
-
-        if (port <= 0) {
-            String pStr = JOptionPane.showInputDialog(null,
-                "Enter Telemetry Stream Port noted down from the backend terminal:\n(Leave blank to exit)",
-                "CPS Room Dashboard — Port Input",
-                JOptionPane.QUESTION_MESSAGE);
-            if (pStr == null || pStr.trim().isEmpty()) {
-                System.out.println("[INFO] No port provided. Exiting.");
-                return;
-            }
-            try {
-                port = Integer.parseInt(pStr.trim());
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(null, "Invalid port number entered.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-        final String fHost = host;
-        final int fPort = port;
-        SwingUtilities.invokeLater(() -> new RoomDashboardApplet(fHost, fPort));
+        String host = args.length > 0 ? args[0] : "localhost";
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : 9090;
+        SwingUtilities.invokeLater(() -> new RoomDashboardApplet(host, port));
     }
 }

@@ -62,21 +62,19 @@ public class NobitaDepartureSyncApp extends JFrame {
     private static final Color TEXT_WHITE     = new Color(255, 255, 255);  // Pure Crisp White
     private static final Color TEXT_MUTED     = new Color(226, 232, 240);  // High Contrast Light Slate
 
-    // Network & Target Configuration (Dynamic Workspace Ports)
-    private String host;
-    private int sensorPort;     // Sensors Bus (dynamic)
-    private int telemetryPort;  // Telemetry Stream (dynamic)
+    // Network & Target Configuration
+    private final String host;
+    private final int sensorPort;     // Port 9091 (Fixed Sensors Port)
+    private final int telemetryPort;  // Port 9090 (Fixed Telemetry Port)
 
     // Socket connections
     private Socket sensorSocket;
     private PrintWriter sensorOut;
     private BufferedReader sensorIn;
-    private Thread sensorThread;
     private volatile boolean sensorConnected = false;
 
     private Socket telemetrySocket;
     private BufferedReader telemetryIn;
-    private Thread telemetryThread;
     private volatile boolean telemetryConnected = false;
 
     // ─── Scenario Definitions ────────────────────────────────────────────────
@@ -89,10 +87,10 @@ public class NobitaDepartureSyncApp extends JFrame {
             20,
             3.00,
             100.0, // No second trigger
-            "● 🚪 NOBITA IN ROOM (t < 3.0s)",
-            "★ 🚁 BAMBOO-COPTER EXIT (t ≥ 3.0s)",
+            "NOBITA IN ROOM (t < 3.0s)",
+            "BAMBOO-COPTER EXIT (t >= 3.0s)",
             "",
-            "🚁 TRIGGER 3.0s EXIT"
+            "TRIGGER 3.0s EXIT"
         ),
         SLEEPING(
             "🛏️ 2. Nobita Sleeping & Dimming (Nobita sleeping.mov — Dims at 4.0s)",
@@ -102,10 +100,10 @@ public class NobitaDepartureSyncApp extends JFrame {
             20,
             4.00,
             100.0,
-            "● 🛏️ NOBITA AWAKE / IN BED (t < 4.0s)",
-            "🌙 💤 SLEEP MODE — LIGHTS DIMMED (t ≥ 4.0s)",
+            "NOBITA AWAKE / IN BED (t < 4.0s)",
+            "SLEEP MODE — LIGHTS DIMMED (t >= 4.0s)",
             "",
-            "🌙 TRIGGER 4.0s SLEEP"
+            "TRIGGER 4.0s SLEEP"
         ),
         ENTERING(
             "🚶 3. Nobita Entering Room (Nobita enters the room.mov — Entry at 6.6s)",
@@ -115,10 +113,10 @@ public class NobitaDepartureSyncApp extends JFrame {
             15,
             6.60,
             100.0,
-            "● 🌑 ROOM VACANT / DARK (t < 6.6s)",
-            "💡 🚶 NOBITA ENTERS — LIGHTS ON (t ≥ 6.6s)",
+            "ROOM VACANT / DARK (t < 6.6s)",
+            "NOBITA ENTERS — LIGHTS ON (t >= 6.6s)",
             "",
-            "🚶 TRIGGER 6.6s ENTRY"
+            "TRIGGER 6.6s ENTRY"
         ),
         PIR_ACTIVATED(
             "🚨 4. PIR Sensor Activated (PIR motion sensor activated.mp4 — Motion at 2.3s)",
@@ -128,10 +126,10 @@ public class NobitaDepartureSyncApp extends JFrame {
             15,
             2.30,
             10.30,
-            "● ⏳ PIR STANDBY (t < 2.3s)",
-            "🚨 ⚡ PIR MOTION DETECTED (2.3s ≤ t < 10.3s)",
-            "💤 IDLE / CLEAR (t ≥ 10.3s)",
-            "🚨 TRIGGER MOTION ACTIVE"
+            "PIR STANDBY (t < 2.3s)",
+            "PIR MOTION DETECTED (2.3s <= t < 10.3s)",
+            "IDLE / CLEAR (t >= 10.3s)",
+            "TRIGGER MOTION ACTIVE"
         );
 
         public final String displayName;
@@ -207,7 +205,7 @@ public class NobitaDepartureSyncApp extends JFrame {
     private JTextArea logArea;
 
     public NobitaDepartureSyncApp(String host, int sensorPort, int telemetryPort) {
-        super("🎬 Nobita Smart Room CPS Video Synchronizer — Multi-Scenario Suite");
+        super("Nobita Smart Room CPS Video Synchronizer — Multi-Scenario Suite");
         this.host = host;
         this.sensorPort = sensorPort;
         this.telemetryPort = telemetryPort;
@@ -243,7 +241,7 @@ public class NobitaDepartureSyncApp extends JFrame {
 
         JPanel titleGrp = new JPanel(new GridLayout(2, 1, 0, 4));
         titleGrp.setOpaque(false);
-        JLabel titleLbl = new JLabel("🎬 NOBITA SMART ROOM — CPS MULTI-SCENARIO SYNCHRONIZER");
+        JLabel titleLbl = new JLabel("NOBITA SMART ROOM — CPS MULTI-SCENARIO SYNCHRONIZER");
         titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 16));
         titleLbl.setForeground(ACCENT_CYAN);
 
@@ -253,30 +251,12 @@ public class NobitaDepartureSyncApp extends JFrame {
         titleGrp.add(titleLbl);
         titleGrp.add(subLbl);
 
-        JPanel pillsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+        JPanel pillsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 4));
         pillsPanel.setOpaque(false);
 
-        JButton btnSetPorts = createStyledButton("🔌 ENTER PORTS", CARD_BG, ACCENT_CYAN);
-        btnSetPorts.setToolTipText("Enter dynamic port numbers hosted by workspace");
-        btnSetPorts.addActionListener(e -> promptAndSetPorts());
-
-        statusVideoPill  = createPill("🎬 VIDEO: LOADING...", ACCENT_GOLD);
-        statusSensorPill = createPill("⚡ SENSORS: " + (sensorPort > 0 ? sensorPort : "SIM"), ACCENT_GOLD);
-        statusTelemPill  = createPill("📡 TELEMETRY: " + (telemetryPort > 0 ? telemetryPort : "SIM"), ACCENT_GOLD);
-
-        statusSensorPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        statusSensorPill.setToolTipText("Click to change Sensors Port");
-        statusSensorPill.addMouseListener(new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) { promptAndSetPorts(); }
-        });
-
-        statusTelemPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        statusTelemPill.setToolTipText("Click to change Telemetry Port");
-        statusTelemPill.addMouseListener(new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) { promptAndSetPorts(); }
-        });
-
-        pillsPanel.add(btnSetPorts);
+        statusVideoPill  = createPill("VIDEO: LOADING...", ACCENT_GOLD);
+        statusSensorPill = createPill("SENSORS BUS: 9091", ACCENT_GOLD);
+        statusTelemPill  = createPill("TELEMETRY: 9090", ACCENT_GOLD);
         pillsPanel.add(statusVideoPill);
         pillsPanel.add(statusSensorPill);
         pillsPanel.add(statusTelemPill);
@@ -298,10 +278,10 @@ public class NobitaDepartureSyncApp extends JFrame {
         ));
         leftVideoCard.setPreferredSize(new Dimension(740, 0));
 
-        // Scenario Selector Row
+        // Scenario Selector Row (Dropdown Box: Emojis preserved inside dropdown!)
         JPanel scenarioRow = new JPanel(new BorderLayout(10, 0));
         scenarioRow.setOpaque(false);
-        JLabel scLbl = new JLabel("🎯 ACTIVE SCENARIO:");
+        JLabel scLbl = new JLabel("ACTIVE SCENARIO:");
         scLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         scLbl.setForeground(ACCENT_GOLD);
 
@@ -350,10 +330,10 @@ public class NobitaDepartureSyncApp extends JFrame {
         JPanel transportBtnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         transportBtnRow.setOpaque(false);
 
-        playBtn = createStyledButton("▶ PLAY VIDEO & SYNC", ACCENT_GREEN, Color.BLACK);
+        playBtn = createStyledButton("PLAY VIDEO & SYNC", ACCENT_GREEN, Color.BLACK);
         playBtn.addActionListener(e -> togglePlay());
 
-        restartBtn = createStyledButton("↺ RESTART", new Color(71, 85, 105), TEXT_WHITE);
+        restartBtn = createStyledButton("RESTART", new Color(71, 85, 105), TEXT_WHITE);
         restartBtn.addActionListener(e -> restartTimeline());
 
         timeDisplayLbl = new JLabel(formatTimeString(0.0, currentScenario.durationSec));
@@ -384,7 +364,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             new EmptyBorder(14, 16, 14, 16)
         ));
 
-        JLabel telemTitle = new JLabel("⚡ CPS REAL-TIME TELEMETRY HUD (PORT 9090)");
+        JLabel telemTitle = new JLabel("CPS REAL-TIME TELEMETRY HUD (PORT 9090)");
         telemTitle.setFont(new Font(FONT_FAMILY, Font.BOLD, 13));
         telemTitle.setForeground(ACCENT_CYAN);
         telemetryCard.add(telemTitle, BorderLayout.NORTH);
@@ -400,7 +380,7 @@ public class NobitaDepartureSyncApp extends JFrame {
         // Manual Injection Buttons
         JPanel manualBtnRow = new JPanel(new GridLayout(1, 2, 10, 0));
         manualBtnRow.setOpaque(false);
-        sendOccupiedBtn = createStyledButton("💡 FORCE OCCUPIED", new Color(14, 165, 233), TEXT_WHITE);
+        sendOccupiedBtn = createStyledButton("FORCE OCCUPIED", new Color(14, 165, 233), TEXT_WHITE);
         sendOccupiedBtn.addActionListener(e -> injectOccupiedStimulus("Manual User Override"));
 
         sendTriggerBtn = createStyledButton(currentScenario.triggerButtonLabel, ACCENT_PURPLE, TEXT_WHITE);
@@ -420,7 +400,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             new EmptyBorder(12, 14, 12, 14)
         ));
 
-        JLabel logHeader = new JLabel("📝 SENSOR BUS & TELEMETRY STREAM LOG");
+        JLabel logHeader = new JLabel("SENSOR BUS & TELEMETRY STREAM LOG");
         logHeader.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         logHeader.setForeground(TEXT_WHITE);
 
@@ -702,151 +682,76 @@ public class NobitaDepartureSyncApp extends JFrame {
     }
 
     // ─── Network Communications ──────────────────────────────────────────────
-    public synchronized void reconnectToPorts(String newHost, int newSPort, int newTPort) {
-        log(String.format("Updating connection ports -> Host: %s, Sensors: %d, Telemetry: %d", newHost, newSPort, newTPort));
-        this.host = newHost;
-        this.sensorPort = newSPort;
-        this.telemetryPort = newTPort;
-
-        try { if (sensorSocket != null) sensorSocket.close(); } catch (Exception ignored) {}
-        try { if (telemetrySocket != null) telemetrySocket.close(); } catch (Exception ignored) {}
-        if (sensorThread != null) sensorThread.interrupt();
-        if (telemetryThread != null) telemetryThread.interrupt();
-        sensorConnected = false;
-        telemetryConnected = false;
-
-        connectSockets();
-    }
-
-    public void promptAndSetPorts() {
-        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
-        panel.setBackground(CARD_BG);
-
-        JLabel hLbl = new JLabel("Host IP / Hostname:");
-        hLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        hLbl.setForeground(TEXT_WHITE);
-        JTextField hostFld = new JTextField(host);
-
-        JLabel sLbl = new JLabel("⚡ Physical Sensors Port (Input):");
-        sLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        sLbl.setForeground(ACCENT_GOLD);
-        JTextField sPortFld = new JTextField(sensorPort > 0 ? String.valueOf(sensorPort) : "");
-
-        JLabel tLbl = new JLabel("📡 Radio Telemetry Port (Monitor):");
-        tLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        tLbl.setForeground(ACCENT_CYAN);
-        JTextField tPortFld = new JTextField(telemetryPort > 0 ? String.valueOf(telemetryPort) : "");
-
-        panel.add(hLbl); panel.add(hostFld);
-        panel.add(sLbl); panel.add(sPortFld);
-        panel.add(tLbl); panel.add(tPortFld);
-
-        int res = JOptionPane.showConfirmDialog(this, panel,
-            "🔌 Input Dynamic Workspace Ports", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (res == JOptionPane.OK_OPTION) {
-            try {
-                String nHost = hostFld.getText().trim();
-                int nSPort = Integer.parseInt(sPortFld.getText().trim());
-                int nTPort = Integer.parseInt(tPortFld.getText().trim());
-                reconnectToPorts(nHost, nSPort, nTPort);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Invalid port number. Please enter numeric ports.", "Port Input Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
     private void connectSockets() {
-        // Sensors Bus Client
-        if (sensorPort <= 0) {
-            sensorConnected = false;
-            SwingUtilities.invokeLater(() -> {
-                statusSensorPill.setText("● SENSORS: SIM ONLY");
-                statusSensorPill.setForeground(ACCENT_GOLD);
-                statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GOLD, 2, true), new EmptyBorder(4, 10, 4, 10)));
-            });
-            log("[INFO] Sensors Bus set to 0. Operating in standalone simulation mode.");
-        } else {
-            sensorThread = new Thread(() -> {
+        // Port 9091 (Sensors Bus Client)
+        new Thread(() -> {
+            try {
+                sensorSocket = new Socket(host, sensorPort);
+                sensorOut = new PrintWriter(new OutputStreamWriter(sensorSocket.getOutputStream()), true);
+                sensorIn  = new BufferedReader(new InputStreamReader(sensorSocket.getInputStream()));
+                sensorConnected = true;
+
+                SwingUtilities.invokeLater(() -> {
+                    statusSensorPill.setText("● SENSORS: 9091");
+                    statusSensorPill.setForeground(ACCENT_GREEN);
+                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
+                });
+                log("Connected to Physical Sensor Bus on " + host + ":" + sensorPort);
+
+                String line;
+                while (sensorConnected && (line = sensorIn.readLine()) != null) {
+                    if (line.contains("ERR")) {
+                        log("Sensors Bus Error: " + line);
+                    }
+                }
+            } catch (Exception ex) {
+                sensorConnected = false;
+                SwingUtilities.invokeLater(() -> {
+                    statusSensorPill.setText("● SENSORS: OFF (" + sensorPort + ")");
+                    statusSensorPill.setForeground(ACCENT_RED);
+                    statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
+                });
+                log("[WARN] Sensor Bus not open yet on " + host + ":" + sensorPort + " (" + ex.getMessage() + ")");
+            }
+        }, "SensorsBusClient").start();
+
+        // Port 9090 (Telemetry Receiver)
+        new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                if (!telemetryConnected) {
+                    try {
+                        telemetrySocket = new Socket(host, telemetryPort);
+                        telemetryIn = new BufferedReader(new InputStreamReader(telemetrySocket.getInputStream()));
+                        telemetryConnected = true;
+                        SwingUtilities.invokeLater(() -> {
+                            statusTelemPill.setText("● TELEMETRY: 9090");
+                            statusTelemPill.setForeground(ACCENT_GREEN);
+                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
+                        });
+                        log("Connected to MCU Wi-Fi Telemetry Stream on " + host + ":" + telemetryPort);
+                    } catch (Exception e) {
+                        telemetryConnected = false;
+                        SwingUtilities.invokeLater(() -> {
+                            statusTelemPill.setText("● TELEMETRY: OFF (" + telemetryPort + ")");
+                            statusTelemPill.setForeground(ACCENT_RED);
+                            statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
+                        });
+                        try { Thread.sleep(2000); } catch (InterruptedException ie) { break; }
+                        continue;
+                    }
+                }
+
                 try {
-                    sensorSocket = new Socket(host, sensorPort);
-                    sensorOut = new PrintWriter(new OutputStreamWriter(sensorSocket.getOutputStream()), true);
-                    sensorIn  = new BufferedReader(new InputStreamReader(sensorSocket.getInputStream()));
-                    sensorConnected = true;
-
-                    SwingUtilities.invokeLater(() -> {
-                        statusSensorPill.setText("● SENSORS: " + sensorPort);
-                        statusSensorPill.setForeground(ACCENT_GREEN);
-                        statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
-                    });
-                    log("Connected to Physical Sensor Bus on " + host + ":" + sensorPort);
-
                     String line;
-                    while (sensorConnected && (line = sensorIn.readLine()) != null) {
-                        if (line.contains("ERR")) {
-                            log("Sensors Bus Error: " + line);
-                        }
+                    while ((line = telemetryIn.readLine()) != null) {
+                        parseTelemetry(line);
                     }
                 } catch (Exception ex) {
-                    sensorConnected = false;
-                    SwingUtilities.invokeLater(() -> {
-                        statusSensorPill.setText("● SENSORS: OFF (" + sensorPort + ")");
-                        statusSensorPill.setForeground(ACCENT_RED);
-                        statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
-                    });
-                    log("[WARN] Sensor Bus unreachable on " + host + ":" + sensorPort + ". Click [🔌 ENTER PORTS] to update.");
+                    telemetryConnected = false;
+                    try { if (telemetrySocket != null) telemetrySocket.close(); } catch (Exception ignored) {}
                 }
-            }, "SensorsBusClient");
-            sensorThread.start();
-        }
-
-        // Telemetry Receiver
-        if (telemetryPort <= 0) {
-            telemetryConnected = false;
-            SwingUtilities.invokeLater(() -> {
-                statusTelemPill.setText("● TELEMETRY: SIM ONLY");
-                statusTelemPill.setForeground(ACCENT_GOLD);
-                statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GOLD, 2, true), new EmptyBorder(4, 10, 4, 10)));
-            });
-            log("[INFO] Telemetry stream set to 0. Operating in standalone simulation mode.");
-        } else {
-            telemetryThread = new Thread(() -> {
-                while (!Thread.currentThread().isInterrupted()) {
-                    if (!telemetryConnected) {
-                        try {
-                            telemetrySocket = new Socket(host, telemetryPort);
-                            telemetryIn = new BufferedReader(new InputStreamReader(telemetrySocket.getInputStream()));
-                            telemetryConnected = true;
-                            SwingUtilities.invokeLater(() -> {
-                                statusTelemPill.setText("● TELEMETRY: " + telemetryPort);
-                                statusTelemPill.setForeground(ACCENT_GREEN);
-                                statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
-                            });
-                            log("Connected to MCU Wi-Fi Telemetry Stream on " + host + ":" + telemetryPort);
-                        } catch (Exception e) {
-                            telemetryConnected = false;
-                            SwingUtilities.invokeLater(() -> {
-                                statusTelemPill.setText("● TELEMETRY: OFF (" + telemetryPort + ")");
-                                statusTelemPill.setForeground(ACCENT_RED);
-                                statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
-                            });
-                            try { Thread.sleep(2000); } catch (InterruptedException ie) { break; }
-                            continue;
-                        }
-                    }
-
-                    try {
-                        String line;
-                        while ((line = telemetryIn.readLine()) != null) {
-                            parseTelemetry(line);
-                        }
-                    } catch (Exception ex) {
-                        telemetryConnected = false;
-                        try { if (telemetrySocket != null) telemetrySocket.close(); } catch (Exception ignored) {}
-                    }
-                }
-            }, "TelemetryReceiver");
-            telemetryThread.start();
-        }
+            }
+        }, "TelemetryReceiver").start();
     }
 
     private void parseTelemetry(String json) {
@@ -984,17 +889,17 @@ public class NobitaDepartureSyncApp extends JFrame {
 
     // ─── Scenario-Aware Physical Stimuli ─────────────────────────────────────
     public void injectOccupiedStimulus(String reason) {
-        log("💡 [STIMULUS] OCCUPIED applied: " + reason);
-        log("  → PIR DATA = 3.30V [HIGH]");
-        log("  → MillimeterWaveRadar = 2.80V [HIGH OCCUPANCY]");
+        log("[STIMULUS] OCCUPIED applied: " + reason);
+        log("  -> PIR DATA = 3.30V [HIGH]");
+        log("  -> MillimeterWaveRadar = 2.80V [HIGH OCCUPANCY]");
         sendSensorPin("PIR_MotionSensor", "DATA", 3.3);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 2.80);
     }
 
     public void injectVacantStimulus(String reason) {
-        log("🌑 [STIMULUS] VACANT applied: " + reason);
-        log("  → PIR DATA = 0.00V [LOW]");
-        log("  → MillimeterWaveRadar = 0.05V [NO MOTION]");
+        log("[STIMULUS] VACANT applied: " + reason);
+        log("  -> PIR DATA = 0.00V [LOW]");
+        log("  -> MillimeterWaveRadar = 0.05V [NO MOTION]");
         sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 0.05);
     }
@@ -1018,46 +923,46 @@ public class NobitaDepartureSyncApp extends JFrame {
 
     public void triggerSecondaryEvent(String reason) {
         if (currentScenario == Scenario.PIR_ACTIVATED) {
-            log("💤 [EVENT] PIR MOTION CEASED: " + reason);
-            log("  → PIR DATA = 0.00V [LOW]");
-            log("  → Radar = 0.05V [IDLE]");
+            log("[EVENT] PIR MOTION CEASED: " + reason);
+            log("  -> PIR DATA = 0.00V [LOW]");
+            log("  -> Radar = 0.05V [IDLE]");
             sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
             sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 0.05);
         }
     }
 
     public void injectDepartureStimulus(String reason) {
-        log("🚁 [EVENT] NOBITA BAMBOO-COPTER DEPARTURE: " + reason);
-        log("  → PIR DATA = 0.0V (Nobita has flown out the window)");
-        log("  → Radar = 0.05V (Micro-motion lost)");
+        log("[EVENT] NOBITA BAMBOO-COPTER DEPARTURE: " + reason);
+        log("  -> PIR DATA = 0.0V (Nobita has flown out the window)");
+        log("  -> Radar = 0.05V (Micro-motion lost)");
         sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 0.05);
     }
 
     public void injectSleepModeStimulus(String reason) {
-        log("🌙 [EVENT] NOBITA SLEEP & DIMMING MODE: " + reason);
-        log("  → Nobita asleep (t = 4.0s) -> Room lights dim down");
-        log("  → PIR DATA = 0.0V (No gross body movement)");
-        log("  → MillimeterWaveRadar = 1.95V (Vital respiration micro-movement)");
+        log("[EVENT] NOBITA SLEEP & DIMMING MODE: " + reason);
+        log("  -> Nobita asleep (t = 4.0s) -> Room lights dim down");
+        log("  -> PIR DATA = 0.0V (No gross body movement)");
+        log("  -> MillimeterWaveRadar = 1.95V (Vital respiration micro-movement)");
         sendSensorPin("PIR_MotionSensor", "DATA", 0.0);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 1.95);
     }
 
     public void injectEntryStimulus(String reason) {
-        log("🚶 [EVENT] NOBITA ROOM ENTRY: " + reason);
-        log("  → Nobita opens door and crosses threshold at t = 6.6s!");
-        log("  → PIR DATA = 3.30V [HIGH MOTION]");
-        log("  → MillimeterWaveRadar = 2.85V [PRESENCE ACTIVE]");
-        log("  → ESP32 triggers Smart Lighting ON!");
+        log("[EVENT] NOBITA ROOM ENTRY: " + reason);
+        log("  -> Nobita opens door and crosses threshold at t = 6.6s!");
+        log("  -> PIR DATA = 3.30V [HIGH MOTION]");
+        log("  -> MillimeterWaveRadar = 2.85V [PRESENCE ACTIVE]");
+        log("  -> ESP32 triggers Smart Lighting ON!");
         sendSensorPin("PIR_MotionSensor", "DATA", 3.3);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 2.85);
     }
 
     public void injectPirMotionDetected(String reason) {
-        log("🚨 [EVENT] PIR MOTION SENSOR TRIGGERED: " + reason);
-        log("  → Motion detected in optical Fresnel zone at t = 2.3s!");
-        log("  → PIR DATA = 3.30V [HIGH]");
-        log("  → MillimeterWaveRadar = 2.90V [RADAR CONFIRMED]");
+        log("[EVENT] PIR MOTION SENSOR TRIGGERED: " + reason);
+        log("  -> Motion detected in optical Fresnel zone at t = 2.3s!");
+        log("  -> PIR DATA = 3.30V [HIGH]");
+        log("  -> MillimeterWaveRadar = 2.90V [RADAR CONFIRMED]");
         sendSensorPin("PIR_MotionSensor", "DATA", 3.3);
         sendSensorPin("MillimeterWaveRadar", "PRESENCE_SIG", 2.90);
     }
@@ -1095,86 +1000,11 @@ public class NobitaDepartureSyncApp extends JFrame {
 
     // ─── Launcher Entry Point ────────────────────────────────────────────────
     public static void main(String[] args) {
+        String host = args.length > 0 ? args[0] : "localhost";
+        int sPort   = args.length > 1 ? Integer.parseInt(args[1]) : CpsDomain.PORT_SENSORS;
+        int tPort   = args.length > 2 ? Integer.parseInt(args[2]) : CpsDomain.PORT_TELEMETRY;
+
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
-
-        String host = "localhost";
-        int sPort = -1;
-        int tPort = -1;
-
-        if (args.length >= 3) {
-            host = args[0];
-            sPort = Integer.parseInt(args[1]);
-            tPort = Integer.parseInt(args[2]);
-        } else if (args.length == 2) {
-            sPort = Integer.parseInt(args[0]);
-            tPort = Integer.parseInt(args[1]);
-        }
-
-        if (sPort <= 0 || tPort <= 0 || (args.length > 0 && args[0].equalsIgnoreCase("--prompt"))) {
-            JPanel panel = new JPanel(new GridLayout(4, 1, 6, 6));
-            JLabel info = new JLabel("<html><b>Workspace Dynamic Ports:</b><br>Enter the port numbers displayed in your backend terminal.<br><i>(Hosted values are random and are not reused)</i></html>");
-            info.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
-            panel.add(info);
-
-            JPanel fGroup = new JPanel(new GridLayout(3, 2, 8, 8));
-            JTextField hostFld = new JTextField("localhost");
-            JTextField sPortFld = new JTextField(""); // Blank: user enters value noted from terminal
-            JTextField tPortFld = new JTextField(""); // Blank: user enters value noted from terminal
-
-            fGroup.add(new JLabel("Host / IP:"));
-            fGroup.add(hostFld);
-            fGroup.add(new JLabel("⚡ Sensors Bus Port (from terminal):"));
-            fGroup.add(sPortFld);
-            fGroup.add(new JLabel("📡 Telemetry Stream Port (from terminal):"));
-            fGroup.add(tPortFld);
-
-            panel.add(fGroup);
-
-            Object[] options = {"⚡ Connect to Ports", "🚀 Standalone Sim Mode", "Exit"};
-            int choice = JOptionPane.showOptionDialog(
-                null,
-                panel,
-                "Nobita Video Sync — Enter Ports Noted From Terminal",
-                JOptionPane.YES_NO_CANCEL_OPTION,
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                options,
-                options[0]
-            );
-
-            if (choice == 0) {
-                String sText = sPortFld.getText().trim();
-                String tText = tPortFld.getText().trim();
-                if (sText.isEmpty() || tText.isEmpty()) {
-                    JOptionPane.showMessageDialog(null,
-                        "Ports cannot be empty. Please enter the port numbers you noted down from the terminal.\nSwitching to Standalone Sim Mode.",
-                        "No Port Specified", JOptionPane.WARNING_MESSAGE);
-                    sPort = 0;
-                    tPort = 0;
-                } else {
-                    try {
-                        host = hostFld.getText().trim();
-                        sPort = Integer.parseInt(sText);
-                        tPort = Integer.parseInt(tText);
-                    } catch (Exception ex) {
-                        JOptionPane.showMessageDialog(null,
-                            "Invalid port numbers entered. Switching to Standalone Sim Mode.",
-                            "Port Format Error", JOptionPane.ERROR_MESSAGE);
-                        sPort = 0;
-                        tPort = 0;
-                    }
-                }
-            } else if (choice == 1) {
-                sPort = 0;
-                tPort = 0;
-            } else {
-                return;
-            }
-        }
-
-        final String finalHost = host;
-        final int finalSPort = sPort;
-        final int finalTPort = tPort;
-        SwingUtilities.invokeLater(() -> new NobitaDepartureSyncApp(finalHost, finalSPort, finalTPort));
+        SwingUtilities.invokeLater(() -> new NobitaDepartureSyncApp(host, sPort, tPort));
     }
 }
