@@ -288,10 +288,26 @@ public class NobitaDepartureSyncApp extends JFrame {
         scenarioSelector = new JComboBox<>(Scenario.values());
         scenarioSelector.setSelectedItem(currentScenario);
         scenarioSelector.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        scenarioSelector.setBackground(new Color(0,0,0));
+        scenarioSelector.setBackground(new Color(24, 32, 47));
         scenarioSelector.setForeground(TEXT_WHITE);
         scenarioSelector.setFocusable(false);
         scenarioSelector.setBorder(new LineBorder(BORDER_BRIGHT, 1, true));
+        scenarioSelector.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                lbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
+                lbl.setBorder(new EmptyBorder(6, 10, 6, 10));
+                if (isSelected) {
+                    lbl.setBackground(new Color(37, 99, 235)); // Vibrant Royal Blue (#2563EB)
+                    lbl.setForeground(Color.WHITE);
+                } else {
+                    lbl.setBackground(new Color(24, 32, 47));  // Slate card (#18202F)
+                    lbl.setForeground(TEXT_WHITE);             // Crisp white
+                }
+                return lbl;
+            }
+        });
         scenarioSelector.addActionListener(e -> {
             Scenario selected = (Scenario) scenarioSelector.getSelectedItem();
             if (selected != null && selected != currentScenario) {
@@ -453,20 +469,18 @@ public class NobitaDepartureSyncApp extends JFrame {
         timelineSlider.setMaximum((int) (currentScenario.durationSec * 1000));
         timelineSlider.setValue(0);
         timeDisplayLbl.setText(formatTimeString(0.0, currentScenario.durationSec));
-        playBtn.setText("▶ PLAY VIDEO & SYNC");
-        playBtn.setBackground(ACCENT_GREEN);
-        playBtn.setForeground(Color.BLACK);
+        updateButtonAppearance(playBtn, "PLAY VIDEO & SYNC", ACCENT_GREEN);
 
         // Update active frames from cache
         List<BufferedImage> frames = scenarioFramesCache.get(currentScenario);
         activeFrames.clear();
         if (frames != null && !frames.isEmpty()) {
             activeFrames.addAll(frames);
-            statusVideoPill.setText("● VIDEO: " + activeFrames.size() + " FRAMES (" + currentScenario.videoFileName + ")");
+            statusVideoPill.setText("VIDEO: " + activeFrames.size() + " FRAMES (" + currentScenario.videoFileName + ")");
             statusVideoPill.setForeground(ACCENT_GREEN);
             statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
         } else {
-            statusVideoPill.setText("● VIDEO: LOADING...");
+            statusVideoPill.setText("VIDEO: LOADING...");
             statusVideoPill.setForeground(ACCENT_GOLD);
             statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GOLD, 2, true), new EmptyBorder(4, 10, 4, 10)));
             loadScenarioFrames(currentScenario);
@@ -598,7 +612,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                 if (frames != null && !frames.isEmpty()) {
                     activeFrames.clear();
                     activeFrames.addAll(frames);
-                    statusVideoPill.setText("● VIDEO: " + activeFrames.size() + " FRAMES (READY)");
+                    statusVideoPill.setText("VIDEO: " + activeFrames.size() + " FRAMES (READY)");
                     statusVideoPill.setForeground(ACCENT_GREEN);
                     statusVideoPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
                     log("All 4 scenario feeds loaded! Active: " + activeFrames.size() + " frames (" + currentScenario.videoFileName + ")");
@@ -665,12 +679,21 @@ public class NobitaDepartureSyncApp extends JFrame {
     private JButton createStyledButton(String text, Color bg, Color fg) {
         JButton b = new JButton(text);
         b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
-        b.setForeground(fg);
         b.setBackground(bg);
+        // Automated luminance contrast calculation: Guarantees font and background are NEVER same or similar!
+        double lum = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255.0;
+        b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
         b.setFocusPainted(false);
         b.setBorder(new CompoundBorder(new LineBorder(bg.brighter(), 1, true), new EmptyBorder(10, 16, 10, 16)));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
+    }
+
+    private void updateButtonAppearance(JButton b, String text, Color bg) {
+        b.setText(text);
+        b.setBackground(bg);
+        double lum = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255.0;
+        b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
     }
 
     private void log(String msg) {
@@ -692,7 +715,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                 sensorConnected = true;
 
                 SwingUtilities.invokeLater(() -> {
-                    statusSensorPill.setText("● SENSORS: 9091");
+                    statusSensorPill.setText("SENSORS: 9091");
                     statusSensorPill.setForeground(ACCENT_GREEN);
                     statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
                 });
@@ -707,7 +730,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             } catch (Exception ex) {
                 sensorConnected = false;
                 SwingUtilities.invokeLater(() -> {
-                    statusSensorPill.setText("● SENSORS: OFF (" + sensorPort + ")");
+                    statusSensorPill.setText("SENSORS: OFF (" + sensorPort + ")");
                     statusSensorPill.setForeground(ACCENT_RED);
                     statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
                 });
@@ -724,7 +747,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                         telemetryIn = new BufferedReader(new InputStreamReader(telemetrySocket.getInputStream()));
                         telemetryConnected = true;
                         SwingUtilities.invokeLater(() -> {
-                            statusTelemPill.setText("● TELEMETRY: 9090");
+                            statusTelemPill.setText("TELEMETRY: 9090");
                             statusTelemPill.setForeground(ACCENT_GREEN);
                             statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 2, true), new EmptyBorder(4, 10, 4, 10)));
                         });
@@ -732,7 +755,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                     } catch (Exception e) {
                         telemetryConnected = false;
                         SwingUtilities.invokeLater(() -> {
-                            statusTelemPill.setText("● TELEMETRY: OFF (" + telemetryPort + ")");
+                            statusTelemPill.setText("TELEMETRY: OFF (" + telemetryPort + ")");
                             statusTelemPill.setForeground(ACCENT_RED);
                             statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_RED, 2, true), new EmptyBorder(4, 10, 4, 10)));
                         });
@@ -837,9 +860,7 @@ public class NobitaDepartureSyncApp extends JFrame {
                 restartTimeline();
             }
             isPlaying = true;
-            playBtn.setText("⏸ PAUSE VIDEO");
-            playBtn.setBackground(ACCENT_GOLD);
-            playBtn.setForeground(Color.BLACK);
+            updateButtonAppearance(playBtn, "PAUSE VIDEO", ACCENT_GOLD);
             playbackTimer.start();
             log("Started synchronized playback (" + currentScenario.videoFileName + ")...");
 
@@ -849,9 +870,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             }
         } else {
             isPlaying = false;
-            playBtn.setText("▶ RESUME VIDEO");
-            playBtn.setBackground(ACCENT_GREEN);
-            playBtn.setForeground(Color.BLACK);
+            updateButtonAppearance(playBtn, "RESUME VIDEO", ACCENT_GREEN);
             playbackTimer.stop();
             log("Paused video at " + String.format(Locale.US, "%.2fs", currentTimelineSec));
         }
@@ -863,9 +882,7 @@ public class NobitaDepartureSyncApp extends JFrame {
         currentTimelineSec = 0.0;
         eventDispatched = false;
         event2Dispatched = false;
-        playBtn.setText("▶ PLAY VIDEO & SYNC");
-        playBtn.setBackground(ACCENT_GREEN);
-        playBtn.setForeground(Color.BLACK);
+        updateButtonAppearance(playBtn, "PLAY VIDEO & SYNC", ACCENT_GREEN);
 
         updateTimelineDisplay();
         videoViewport.repaint();
