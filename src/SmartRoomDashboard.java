@@ -127,6 +127,22 @@ public class SmartRoomDashboard extends JFrame {
         scenarioCombo.setForeground(TEXT);
         scenarioCombo.setFocusable(false);
         scenarioCombo.setBorder(new LineBorder(new Color(51, 65, 85), 1, true));
+        scenarioCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                lbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
+                lbl.setBorder(new EmptyBorder(5, 8, 5, 8));
+                if (isSelected) {
+                    lbl.setBackground(new Color(37, 99, 235)); // Vibrant Royal Blue (#2563EB)
+                    lbl.setForeground(Color.WHITE);
+                } else {
+                    lbl.setBackground(new Color(24, 32, 47));  // Slate card (#18202F)
+                    lbl.setForeground(TEXT);                   // Crisp white
+                }
+                return lbl;
+            }
+        });
         scenarioCombo.addActionListener(e -> {
             int idx = scenarioCombo.getSelectedIndex();
             applyScenarioPreset(idx);
@@ -139,7 +155,10 @@ public class SmartRoomDashboard extends JFrame {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 2));
         right.setOpaque(false);
-        right.add(new JLabel("Mode: "));
+        JLabel modeLbl = new JLabel("Mode: ");
+        modeLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
+        modeLbl.setForeground(TEXT);
+        right.add(modeLbl);
         right.add(scenarioCombo);
         right.add(connectBtn);
         right.add(disconnectBtn);
@@ -707,15 +726,15 @@ public class SmartRoomDashboard extends JFrame {
     private JButton dashBtn(String text, Color c) {
         JButton b = new JButton(text);
         b.setBackground(c);
-        // Contrast check: on bright green/amber, dark text; on red/accent, white text
-        if (c.equals(GREEN) || c.equals(AMBER)) {
-            b.setForeground(new Color(10, 15, 26));
-        } else {
-            b.setForeground(Color.WHITE);
-        }
+        b.setContentAreaFilled(true);
+        b.setOpaque(true);
+        // Automated luminance contrast calculation: Guarantees font and background are NEVER same or similar!
+        double lum = (0.299 * c.getRed() + 0.587 * c.getGreen() + 0.114 * c.getBlue()) / 255.0;
+        b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
         b.setFocusPainted(false);
         b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         b.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
     }
 
@@ -723,9 +742,12 @@ public class SmartRoomDashboard extends JFrame {
         JToggleButton tb = new JToggleButton(tag + ": " + offTxt);
         tb.setBackground(new Color(30, 41, 59));
         tb.setForeground(TEXT);
+        tb.setContentAreaFilled(true);
+        tb.setOpaque(true);
         tb.setFocusPainted(false);
         tb.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         tb.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
+        tb.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         tb.addChangeListener(e -> {
             boolean sel = tb.isSelected();
             tb.setText(tag + ": " + (sel ? onTxt : offTxt));

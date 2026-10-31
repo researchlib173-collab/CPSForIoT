@@ -263,6 +263,22 @@ public class SmartRoomBenchApp extends JFrame {
         scenarioCombo.setForeground(TEXT_MAIN);
         scenarioCombo.setFocusable(false);
         scenarioCombo.setBorder(new LineBorder(BORDER_COLOR, 1, true));
+        scenarioCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                lbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
+                lbl.setBorder(new EmptyBorder(6, 10, 6, 10));
+                if (isSelected) {
+                    lbl.setBackground(new Color(37, 99, 235)); // High-contrast Royal Blue (#2563EB)
+                    lbl.setForeground(Color.WHITE);
+                } else {
+                    lbl.setBackground(new Color(24, 32, 47));  // Slate card (#18202F)
+                    lbl.setForeground(TEXT_MAIN);              // Crisp white
+                }
+                return lbl;
+            }
+        });
         scenarioCombo.addActionListener(e -> {
             Scenario selected = (Scenario) scenarioCombo.getSelectedItem();
             if (selected != null && selected != currentScenario) {
@@ -413,14 +429,10 @@ public class SmartRoomBenchApp extends JFrame {
     private void togglePlay() {
         isPlaying = !isPlaying;
         if (isPlaying) {
-            playBtn.setText("⏸ PAUSE SIM");
-            playBtn.setBackground(ACCENT_AMBER);
-            playBtn.setForeground(Color.BLACK);
+            updateButtonAppearance(playBtn, "PAUSE SIM", ACCENT_AMBER);
             lastTickNano = System.nanoTime();
         } else {
-            playBtn.setText("▶ RESUME SIM");
-            playBtn.setBackground(ACCENT_GREEN);
-            playBtn.setForeground(Color.BLACK);
+            updateButtonAppearance(playBtn, "RESUME SIM", ACCENT_GREEN);
         }
     }
 
@@ -702,7 +714,7 @@ public class SmartRoomBenchApp extends JFrame {
                 sensorConnected = true;
 
                 SwingUtilities.invokeLater(() -> {
-                    statusSensorPill.setText("● SENSORS: 9091");
+                    statusSensorPill.setText("SENSORS: 9091");
                     statusSensorPill.setForeground(ACCENT_GREEN);
                     statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
                 });
@@ -710,7 +722,7 @@ public class SmartRoomBenchApp extends JFrame {
             } catch (Exception ex) {
                 sensorConnected = false;
                 SwingUtilities.invokeLater(() -> {
-                    statusSensorPill.setText("● SENSORS: SIM ONLY");
+                    statusSensorPill.setText("SENSORS: SIM ONLY");
                     statusSensorPill.setForeground(ACCENT_AMBER);
                     statusSensorPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
                 });
@@ -727,7 +739,7 @@ public class SmartRoomBenchApp extends JFrame {
                         telemetryIn = new BufferedReader(new InputStreamReader(telemetrySocket.getInputStream()));
                         telemetryConnected = true;
                         SwingUtilities.invokeLater(() -> {
-                            statusTelemPill.setText("● TELEMETRY: 9090");
+                            statusTelemPill.setText("TELEMETRY: 9090");
                             statusTelemPill.setForeground(ACCENT_GREEN);
                             statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_GREEN, 1, true), new EmptyBorder(3, 8, 3, 8)));
                         });
@@ -735,7 +747,7 @@ public class SmartRoomBenchApp extends JFrame {
                     } catch (Exception e) {
                         telemetryConnected = false;
                         SwingUtilities.invokeLater(() -> {
-                            statusTelemPill.setText("● TELEMETRY: SIM");
+                            statusTelemPill.setText("TELEMETRY: SIM");
                             statusTelemPill.setForeground(ACCENT_AMBER);
                             statusTelemPill.setBorder(new CompoundBorder(new LineBorder(ACCENT_AMBER, 1, true), new EmptyBorder(3, 8, 3, 8)));
                         });
@@ -1138,8 +1150,8 @@ public class SmartRoomBenchApp extends JFrame {
                 g2.setFont(new Font("Consolas", Font.BOLD, 9));
                 g2.drawString("23°C", ax + aw - 36, ay + 29);
             } else {
-                g2.setColor(new Color(71, 85, 105));
-                g2.setFont(new Font("Consolas", Font.PLAIN, 8));
+                g2.setColor(new Color(203, 213, 225)); // High-contrast light slate (> 8:1 on #0F172A)
+                g2.setFont(new Font("Consolas", Font.BOLD, 8));
                 g2.drawString("--", ax + aw - 30, ay + 28);
             }
 
@@ -1289,6 +1301,8 @@ public class SmartRoomBenchApp extends JFrame {
         JLabel l = new JLabel(text);
         l.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
         l.setForeground(color);
+        l.setOpaque(true);
+        l.setBackground(new Color(6, 10, 18)); // Solid pitch obsidian background
         l.setBorder(new CompoundBorder(
             new LineBorder(color, 1, true),
             new EmptyBorder(3, 8, 3, 8)
@@ -1299,12 +1313,25 @@ public class SmartRoomBenchApp extends JFrame {
     private JButton createStyledButton(String text, Color bg, Color fg) {
         JButton b = new JButton(text);
         b.setFont(new Font(FONT_FAMILY, Font.BOLD, 11));
-        b.setForeground(fg);
         b.setBackground(bg);
+        b.setContentAreaFilled(true);
+        b.setOpaque(true);
+        // Automated luminance contrast calculation: Guarantees font and background are NEVER same or similar!
+        double lum = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255.0;
+        b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
         b.setFocusPainted(false);
-        b.setBorder(new EmptyBorder(8, 14, 8, 14));
+        b.setBorder(new CompoundBorder(new LineBorder(bg.brighter(), 1, true), new EmptyBorder(8, 14, 8, 14)));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
+    }
+
+    private void updateButtonAppearance(JButton b, String text, Color bg) {
+        b.setText(text);
+        b.setBackground(bg);
+        b.setContentAreaFilled(true);
+        b.setOpaque(true);
+        double lum = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255.0;
+        b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
     }
 
     private void log(String msg) {

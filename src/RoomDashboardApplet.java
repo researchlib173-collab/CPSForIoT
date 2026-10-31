@@ -177,6 +177,8 @@ public class RoomDashboardApplet extends JFrame {
         connectBtn.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         connectBtn.setBackground(new Color(30, 41, 59));
         connectBtn.setForeground(TEXT_MAIN);
+        connectBtn.setContentAreaFilled(true);
+        connectBtn.setOpaque(true);
         connectBtn.setFocusPainted(false);
         connectBtn.setBorder(new CompoundBorder(new LineBorder(new Color(71, 85, 105), 1, true), new EmptyBorder(6, 14, 6, 14)));
         connectBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

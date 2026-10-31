@@ -669,6 +669,8 @@ public class NobitaDepartureSyncApp extends JFrame {
         JLabel l = new JLabel(text);
         l.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         l.setForeground(color);
+        l.setOpaque(true);
+        l.setBackground(new Color(6, 10, 18)); // Solid pitch obsidian background
         l.setBorder(new CompoundBorder(
             new LineBorder(color, 2, true),
             new EmptyBorder(4, 10, 4, 10)
@@ -680,6 +682,8 @@ public class NobitaDepartureSyncApp extends JFrame {
         JButton b = new JButton(text);
         b.setFont(new Font(FONT_FAMILY, Font.BOLD, 12));
         b.setBackground(bg);
+        b.setContentAreaFilled(true);
+        b.setOpaque(true);
         // Automated luminance contrast calculation: Guarantees font and background are NEVER same or similar!
         double lum = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255.0;
         b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
@@ -692,6 +696,8 @@ public class NobitaDepartureSyncApp extends JFrame {
     private void updateButtonAppearance(JButton b, String text, Color bg) {
         b.setText(text);
         b.setBackground(bg);
+        b.setContentAreaFilled(true);
+        b.setOpaque(true);
         double lum = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255.0;
         b.setForeground((lum > 0.50) ? new Color(10, 15, 26) : Color.WHITE);
     }
@@ -813,9 +819,7 @@ public class NobitaDepartureSyncApp extends JFrame {
             if (currentTimelineSec >= currentScenario.durationSec) {
                 currentTimelineSec = currentScenario.durationSec;
                 isPlaying = false;
-                playBtn.setText("▶ PLAY VIDEO & SYNC");
-                playBtn.setBackground(ACCENT_GREEN);
-                playBtn.setForeground(Color.BLACK);
+                updateButtonAppearance(playBtn, "PLAY VIDEO & SYNC", ACCENT_GREEN);
                 log("Video playback completed (" + String.format(Locale.US, "%.2fs", currentScenario.durationSec) + ").");
             }
 
