@@ -563,9 +563,9 @@ public class SmartRoomDashboard extends JFrame {
             int w = getWidth(), h = getHeight();
             int rowH = h / 3;
 
-            drawLedRow(g2, w, rowH / 2,         "PIR Motion",        pirActive, pirActive ? "ACTIVE" : "NO MOTION");
-            drawLedRow(g2, w, rowH + rowH / 2,     "Door Contact",      doorOpen,  doorOpen ? "OPEN" : "CLOSED");
-            drawRadarRow(g2, w, rowH * 2 + rowH / 2, "Radar Confidence", radarConf);
+            drawLedRow(g2, w, rowH / 2,         "PIR Motion (180ms lag)",        pirActive, pirActive ? "ACTIVE" : "NO MOTION");
+            drawLedRow(g2, w, rowH + rowH / 2,     "Door Reed (20ms debounce)",     doorOpen,  doorOpen ? "OPEN" : "CLOSED");
+            drawRadarRow(g2, w, rowH * 2 + rowH / 2, "60GHz Radar (140ms slew)", radarConf);
         }
 
         private void drawLedRow(Graphics2D g, int w, int y, String label, boolean active, String val) {

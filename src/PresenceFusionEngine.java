@@ -139,13 +139,14 @@ public class PresenceFusionEngine {
             if (board.getPin("GPIO_22") != null)
                 board.getPin("GPIO_22").setVoltage(hvacRelay  ? 3.3 : 0.0);
 
-            // Emit fused telemetry JSON
+            // Emit fused telemetry JSON with physical hardware latency profiles
             if (board.socketBridge != null) {
-                String payload = String.format(
+                String payload = String.format(Locale.US,
                     "{\"device\":\"%s\",\"state\":\"%s\"," +
                     "\"pir\":%b,\"door\":%b,\"radar\":%.1f," +
                     "\"light_relay\":%b,\"hvac_relay\":%b," +
-                    "\"hysteresis_remaining_s\":%d}",
+                    "\"hysteresis_remaining_s\":%d," +
+                    "\"latency\":{\"pir_resp_ms\":180,\"radar_filter_ms\":140,\"relay_pickup_ms\":16,\"door_debounce_ms\":20}}",
                     board.id, currentState,
                     pirMotion, doorOpen, radarConf,
                     lightRelay, hvacRelay,

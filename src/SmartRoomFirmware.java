@@ -86,9 +86,10 @@ public class SmartRoomFirmware implements CpsDomain.Firmware {
     // =========================================================================
     @Override
     public void loop(CpsDomain.McuHAL mcu) {
-        // ── 1. SENSOR SAMPLING (Hardware Input) ───────────────────────────────
+        // ── 1. SENSOR SAMPLING (Hardware Input with Real-World Debounce Filtering) ──
+        // Mechanical reed switch debounced for 20ms to eliminate contact chatter
+        boolean doorOpen      = mcu.isHighDebounced(doorPin, 20);
         boolean pirMotion     = mcu.isHigh(pirPin);
-        boolean doorOpen      = mcu.isHigh(doorPin);
         double  radarVoltage  = mcu.analogReadVoltage(radarPin);
         boolean radarDetected = (radarVoltage >= radarThresholdV);
         double  radarConfPct  = Math.min(100.0, (radarVoltage / 3.3) * 100.0);
@@ -157,10 +158,11 @@ public class SmartRoomFirmware implements CpsDomain.Firmware {
             ? Math.max(0, (hysteresisDurationMs - (now - vacancyDetectedAtMs)) / 1000)
             : 0;
 
-        String telemetryPacket = String.format(
+        String telemetryPacket = String.format(Locale.US,
             "{\"device\":\"%s\",\"model\":\"%s\",\"firmware\":\"%s\",\"state\":\"%s\"," +
             "\"pir\":%b,\"door\":%b,\"radar\":%.1f,\"radar_v\":%.3f," +
-            "\"light_relay\":%b,\"hvac_relay\":%b,\"hysteresis_remaining_s\":%d}",
+            "\"light_relay\":%b,\"hvac_relay\":%b,\"hysteresis_remaining_s\":%d," +
+            "\"latency\":{\"pir_resp_ms\":180,\"radar_filter_ms\":140,\"relay_pickup_ms\":16,\"door_debounce_ms\":20}}",
             mcu.getBoardId(), mcu.getModel(), getName(), state,
             pirMotion, doorOpen, radarConfPct, radarVoltage,
             lightRelayState, hvacRelayState, hystRemainingSec

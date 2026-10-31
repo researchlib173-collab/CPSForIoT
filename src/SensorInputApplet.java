@@ -91,11 +91,11 @@ public class SensorInputApplet extends JFrame {
             new EmptyBorder(10, 14, 10, 14)
         ));
 
-        JLabel titleLbl = new JLabel("🔌 HARDWARE SENSOR STIMULATOR");
+        JLabel titleLbl = new JLabel("HARDWARE SENSOR STIMULATOR");
         titleLbl.setFont(new Font(FONT_FAMILY, Font.BOLD, 15));
         titleLbl.setForeground(ACCENT_BLUE);
 
-        JLabel subLbl = new JLabel("Direct Netlist Terminal Access  •  Port " + port);
+        JLabel subLbl = new JLabel("Direct Terminal Access • Port " + port + " • Latency: PIR 180ms | mmWave 140ms | Relay 16ms");
         subLbl.setFont(new Font(FONT_FAMILY, Font.PLAIN, 12));
         subLbl.setForeground(TEXT_MUTED);
 
@@ -469,33 +469,8 @@ public class SensorInputApplet extends JFrame {
 
     // ─── Entry Point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
-        String host = "localhost";
-        int port = -1;
-        if (args.length >= 2) {
-            host = args[0];
-            port = Integer.parseInt(args[1]);
-        } else if (args.length == 1 && !args[0].equalsIgnoreCase("--prompt")) {
-            port = Integer.parseInt(args[0]);
-        }
-
-        if (port <= 0) {
-            String pStr = JOptionPane.showInputDialog(null,
-                "Enter Physical Sensors Port noted down from the backend terminal:\n(Leave blank to exit)",
-                "CPS Sensor Input Applet — Port Input",
-                JOptionPane.QUESTION_MESSAGE);
-            if (pStr == null || pStr.trim().isEmpty()) {
-                System.out.println("[INFO] No port provided. Exiting.");
-                return;
-            }
-            try {
-                port = Integer.parseInt(pStr.trim());
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(null, "Invalid port number entered.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-        final String fHost = host;
-        final int fPort = port;
-        SwingUtilities.invokeLater(() -> new SensorInputApplet(fHost, fPort));
+        String host = args.length > 0 ? args[0] : "localhost";
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : 9091;
+        SwingUtilities.invokeLater(() -> new SensorInputApplet(host, port));
     }
 }

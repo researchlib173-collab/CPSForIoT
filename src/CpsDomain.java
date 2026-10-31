@@ -481,13 +481,44 @@ public class CpsDomain {
         public String getBoardId() { return board.getId(); }
         public String getModel()   { return board.model; }
 
+        // Hardware Input Debounce Tracker (Simulates real MCU Schmitt-trigger / software debouncer)
+        private final Map<String, Long> lastBounceTimes = new ConcurrentHashMap<>();
+        private final Map<String, SignalState> lastStableStates = new ConcurrentHashMap<>();
+
         public SignalState digitalRead(String pinId) {
             Pin p = board.getPin(pinId);
             return p != null ? p.digitalState : SignalState.LOW;
         }
 
+        public SignalState digitalReadDebounced(String pinId, int debounceMs) {
+            Pin p = board.getPin(pinId);
+            if (p == null) return SignalState.LOW;
+            long now = millis();
+            SignalState current = p.digitalState;
+            SignalState lastStable = lastStableStates.getOrDefault(pinId, SignalState.LOW);
+            long lastChange = lastBounceTimes.getOrDefault(pinId, 0L);
+
+            if (current != lastStable) {
+                if (lastChange == 0L) {
+                    lastBounceTimes.put(pinId, now);
+                } else if (now - lastChange >= debounceMs) {
+                    lastStableStates.put(pinId, current);
+                    lastBounceTimes.remove(pinId);
+                    return current;
+                }
+                return lastStable;
+            } else {
+                lastBounceTimes.remove(pinId);
+                return lastStable;
+            }
+        }
+
         public boolean isHigh(String pinId) {
             return digitalRead(pinId) == SignalState.HIGH;
+        }
+
+        public boolean isHighDebounced(String pinId, int debounceMs) {
+            return digitalReadDebounced(pinId, debounceMs) == SignalState.HIGH;
         }
 
         public boolean isLow(String pinId) {
@@ -521,8 +552,6 @@ public class CpsDomain {
         public void radioTransmit(String jsonPayload) {
             if (board.radioBridge != null) {
                 board.radioBridge.transmit(jsonPayload);
-            } else if (ExternalAppletBridge.getDefaultBridge() != null) {
-                ExternalAppletBridge.getDefaultBridge().transmit(jsonPayload);
             }
         }
 
@@ -576,7 +605,8 @@ public class CpsDomain {
         public McuHAL getHal() { return hal; }
 
         public void enableRadioBridge(int port) {
-            this.radioBridge = ExternalAppletBridge.getOrCreate(port, "RadioBridge-" + id);
+            int actualPort = (port > 0) ? port : PORT_TELEMETRY;
+            this.radioBridge = ExternalAppletBridge.getOrCreate(actualPort, "RadioBridge-" + id);
             this.socketBridge = this.radioBridge;
         }
 
@@ -607,43 +637,22 @@ public class CpsDomain {
     // --- 4. PORT 1: WIRELESS IOT BRIDGE (Wi-Fi / Bluetooth Radio) ---
     public static class ExternalAppletBridge {
         private static final Map<Integer, ExternalAppletBridge> activeBridges = new ConcurrentHashMap<>();
-        private static volatile ExternalAppletBridge defaultBridge = null;
-        public static ExternalAppletBridge getDefaultBridge() { return defaultBridge; }
 
         public static synchronized ExternalAppletBridge getOrCreate(int port, String bridgeName) {
-            if (port > 0) {
-                ExternalAppletBridge existing = activeBridges.get(port);
-                if (existing != null) return existing;
-            }
-            ExternalAppletBridge created = new ExternalAppletBridge(port, bridgeName);
-            if (port > 0) activeBridges.put(port, created);
-            return created;
+            return activeBridges.computeIfAbsent(port, p -> new ExternalAppletBridge(p, bridgeName));
         }
 
-        private final int requestedPort;
-        private volatile int actualPort = -1;
+        private final int port;
         private final String bridgeName;
-        private final ServerSocket server;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
         private final List<MessageListener> listeners = new ArrayList<>();
 
         public interface MessageListener { void onMessage(String msg); }
 
         public ExternalAppletBridge(int port, String bridgeName) {
-            this.requestedPort = port;
+            this.port = port;
             this.bridgeName = bridgeName;
-            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
-            ServerSocket ss = null;
-            try {
-                ss = new ServerSocket(bindPort);
-                this.actualPort = ss.getLocalPort();
-                activeBridges.put(this.actualPort, this);
-                defaultBridge = this;
-            } catch (IOException e) {
-                System.out.printf("[BRIDGE ERROR] Failed to bind: %s%n", e.getMessage());
-            }
-            this.server = ss;
-            Thread t = new Thread(this::startServer, bridgeName + "-" + (actualPort > 0 ? actualPort : "dynamic"));
+            Thread t = new Thread(this::startServer, bridgeName + "-" + port);
             t.setDaemon(true);
             t.start();
         }
@@ -653,8 +662,8 @@ public class CpsDomain {
         }
 
         private void startServer() {
-            if (server == null) return;
-            try {
+            try (ServerSocket server = new ServerSocket(port)) {
+                System.out.printf("[PORT 1 - WIRELESS] %s active on port %d. Waiting for telemetry client...%n", bridgeName, port);
                 while (true) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "RadioClient-" + client.getRemoteSocketAddress());
@@ -662,7 +671,7 @@ public class CpsDomain {
                     ct.start();
                 }
             } catch (IOException e) {
-                System.out.printf("[PORT 1 ERROR] %s (port %d): %s%n", bridgeName, (actualPort > 0 ? actualPort : requestedPort), e.getMessage());
+                System.out.printf("[PORT 1 ERROR] %s (port %d): %s%n", bridgeName, port, e.getMessage());
             }
         }
 
@@ -693,7 +702,7 @@ public class CpsDomain {
         }
 
         public boolean isConnected() { return !activeClients.isEmpty(); }
-        public int getPort() { return (actualPort > 0) ? actualPort : requestedPort; }
+        public int getPort() { return port; }
         public void addMessageListener(MessageListener l) { listeners.add(l); }
     }
 
@@ -702,15 +711,13 @@ public class CpsDomain {
         private static final Map<Integer, PhysicalTerminalBusBridge> activeBridges = new ConcurrentHashMap<>();
 
         public static synchronized PhysicalTerminalBusBridge getOrCreate(int port, Map<String, Board> boards, List<Wire> wires) {
-            if (port > 0) {
-                PhysicalTerminalBusBridge existing = activeBridges.get(port);
-                if (existing != null) {
-                    existing.updateContext(boards, wires);
-                    return existing;
-                }
+            PhysicalTerminalBusBridge existing = activeBridges.get(port);
+            if (existing != null) {
+                existing.updateContext(boards, wires);
+                return existing;
             }
             PhysicalTerminalBusBridge created = new PhysicalTerminalBusBridge(port, boards, wires);
-            if (port > 0) activeBridges.put(port, created);
+            activeBridges.put(port, created);
             return created;
         }
 
@@ -732,9 +739,7 @@ public class CpsDomain {
             }
         }
 
-        private final int requestedPort;
-        private volatile int actualPort = -1;
-        private final ServerSocket server;
+        private final int port;
         private Map<String, Board> boards;
         private List<Wire> wires;
         private final List<PrintWriter> activeClients = new CopyOnWriteArrayList<>();
@@ -743,25 +748,15 @@ public class CpsDomain {
         public void setOnPinChangeCallback(Runnable cb) { this.onPinChangeCallback = cb; }
 
         public PhysicalTerminalBusBridge(int port, Map<String, Board> boards, List<Wire> wires) {
-            this.requestedPort = port;
+            this.port = port;
             this.boards = boards;
             this.wires = wires;
-            int bindPort = (requestedPort <= 0) ? 0 : requestedPort;
-            ServerSocket ss = null;
-            try {
-                ss = new ServerSocket(bindPort);
-                this.actualPort = ss.getLocalPort();
-                activeBridges.put(this.actualPort, this);
-            } catch (IOException e) {
-                System.out.printf("[BUS BRIDGE ERROR] Failed to bind: %s%n", e.getMessage());
-            }
-            this.server = ss;
-            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + (actualPort > 0 ? actualPort : "dynamic"));
+            Thread t = new Thread(this::startServer, "TerminalBusBridge-" + port);
             t.setDaemon(true);
             t.start();
         }
 
-        public int getPort() { return (actualPort > 0) ? actualPort : requestedPort; }
+        public int getPort() { return port; }
 
         public void updateContext(Map<String, Board> newBoards, List<Wire> newWires) {
             this.boards = newBoards;
@@ -769,10 +764,10 @@ public class CpsDomain {
         }
 
         private void startServer() {
-            if (server == null) return;
-            String role = (requestedPort == PORT_SENSORS) ? "ALL SENSORS BUS" :
-                          (requestedPort == PORT_ACTUATORS) ? "ALL ACTUATORS BUS" : "PHYSICAL BUS";
-            try {
+            String role = (port == PORT_SENSORS) ? "ALL SENSORS BUS" :
+                          (port == PORT_ACTUATORS) ? "ALL ACTUATORS BUS" : "PHYSICAL BUS";
+            try (ServerSocket server = new ServerSocket(port)) {
+                System.out.printf("[%s] Port %d active! Waiting for DAQ/testbed/applet...%n", role, port);
                 while (isRunning) {
                     Socket client = server.accept();
                     Thread ct = new Thread(() -> handleClient(client), "TerminalClient-" + client.getRemoteSocketAddress());
@@ -780,20 +775,19 @@ public class CpsDomain {
                     ct.start();
                 }
             } catch (IOException e) {
-                System.out.printf("[%s ERROR] (port %d): %s%n", role, (actualPort > 0 ? actualPort : requestedPort), e.getMessage());
+                System.out.printf("[%s ERROR] (port %d): %s%n", role, port, e.getMessage());
             }
         }
 
         private void handleClient(Socket client) {
-            int effectivePort = (actualPort > 0 ? actualPort : requestedPort);
-            String role = (effectivePort == PORT_SENSORS) ? "SENSORS" :
-                          (effectivePort == PORT_ACTUATORS) ? "ACTUATORS" : "TERMINALS";
-            System.out.printf("[%s BUS] Client tapped into port %d from %s%n", role, effectivePort, client.getRemoteSocketAddress());
+            String role = (port == PORT_SENSORS) ? "SENSORS" :
+                          (port == PORT_ACTUATORS) ? "ACTUATORS" : "TERMINALS";
+            System.out.printf("[%s BUS] Client tapped into port %d from %s%n", role, port, client.getRemoteSocketAddress());
             try (BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                  PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream()), true)) {
                 
                 activeClients.add(out);
-                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + effectivePort + ",\"role\":\"" + role + "\"}");
+                out.println("{\"type\":\"TERMINAL_BUS_READY\",\"status\":\"CONNECTED\",\"port\":" + port + ",\"role\":\"" + role + "\"}");
                 
                 String line;
                 while ((line = in.readLine()) != null) {
@@ -801,7 +795,7 @@ public class CpsDomain {
                 }
             } catch (IOException ignored) {
             } finally {
-                System.out.printf("[%s BUS] Client on port %d disconnected.%n", role, effectivePort);
+                System.out.printf("[%s BUS] Client on port %d disconnected.%n", role, port);
             }
         }
 
@@ -835,9 +829,29 @@ public class CpsDomain {
                             double v = Double.parseDouble(tokens[3]);
                             Board b = boards.get(bName);
                             if (b != null) {
+                                // Set stimulus registers on the board for real-world physical sensor latency models
+                                b.setProperty("stimulus_active", v >= 1.65);
+                                b.setProperty("stimulus_voltage", v);
+
+                                // Forward stimulus into any embedded electronic component
+                                for (ElectronicComponent ec : b.components.values()) {
+                                    if (ec.getType().contains("PIR")) {
+                                        ec.setProperty("motion_detected", v >= 1.65);
+                                    } else if (ec.getType().contains("DOOR")) {
+                                        ec.setProperty("door_open", v >= 1.65);
+                                    } else if (ec.getType().contains("RADAR")) {
+                                        ec.setProperty("presence_detected", v >= 1.2);
+                                    } else if (ec.getType().contains("RELAY")) {
+                                        ec.setProperty("v_in", v);
+                                    } else if (ec.getType().contains("TEMP")) {
+                                        ec.setProperty("base_temp_c", (v / 3.3) * 100.0);
+                                    }
+                                }
+
                                 Pin p = b.getPin(pName);
                                 if (p != null) {
                                     p.setVoltage(v);
+                                    b.tickLogic();
                                     if (onPinChangeCallback != null) {
                                         try { onPinChangeCallback.run(); } catch (Exception ignored) {}
                                     }

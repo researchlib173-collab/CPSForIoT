@@ -177,6 +177,8 @@ public class SmartRoomBenchApp extends JFrame {
     private JLabel acCard;
     private JLabel ledCard;
     private JLabel hystCard;
+    private JLabel latencyCard;
+    private JLabel relayLagCard;
     private JTextArea logArea;
 
     public SmartRoomBenchApp(String host, int sensorPort, int telemetryPort) {
@@ -356,7 +358,7 @@ public class SmartRoomBenchApp extends JFrame {
         telemTitle.setForeground(ACCENT_CYAN);
         telemetryCard.add(telemTitle, BorderLayout.NORTH);
 
-        JPanel metricsGrid = new JPanel(new GridLayout(3, 2, 8, 8));
+        JPanel metricsGrid = new JPanel(new GridLayout(4, 2, 8, 8));
         metricsGrid.setOpaque(false);
 
         roomStateCard = createMetricCard("ROOM STATE", "OCCUPIED", ACCENT_GREEN, metricsGrid);
@@ -365,6 +367,8 @@ public class SmartRoomBenchApp extends JFrame {
         radarCard     = createMetricCard("60GHz RADAR (GPIO 27)", "2.85 V [86%]", ACCENT_GREEN, metricsGrid);
         ledCard       = createMetricCard("LED LUMINAIRE (GPIO 21)", "100% BRIGHT", ACCENT_AMBER, metricsGrid);
         acCard        = createMetricCard("HVAC COOLING (GPIO 22)", "23°C ACTIVE", ACCENT_CYAN, metricsGrid);
+        latencyCard   = createMetricCard("PHYSICAL SENSOR LATENCY", "PIR: 180ms | RADAR: 140ms", ACCENT_AMBER, metricsGrid);
+        relayLagCard  = createMetricCard("RELAY & DEBOUNCE TIMING", "COIL: 16ms | REED: 20ms", ACCENT_CYAN, metricsGrid);
 
         telemetryCard.add(metricsGrid, BorderLayout.CENTER);
 

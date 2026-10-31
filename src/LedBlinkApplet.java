@@ -905,20 +905,12 @@ public class LedBlinkApplet extends JFrame {
     // ─── Entry Point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
         String h = "localhost";
-        int p = -1;
+        int p = CpsDomain.PORT_ACTUATORS; // 9092
         if (args.length > 0) {
             try { p = Integer.parseInt(args[0]); } catch (Exception ignored) { h = args[0]; }
         }
         if (args.length > 1) {
             try { p = Integer.parseInt(args[1]); } catch (Exception ignored) {}
-        }
-        if (p <= 0 || (args.length > 0 && args[0].equalsIgnoreCase("--prompt"))) {
-            String pStr = JOptionPane.showInputDialog(null,
-                "Enter Actuator Bus Port noted down from the backend terminal:\n(Leave blank to exit)",
-                "LED Blink Applet — Port Input",
-                JOptionPane.QUESTION_MESSAGE);
-            if (pStr == null || pStr.trim().isEmpty()) return;
-            try { p = Integer.parseInt(pStr.trim()); } catch (Exception e) { return; }
         }
         final String finalHost = h;
         final int finalPort = p;

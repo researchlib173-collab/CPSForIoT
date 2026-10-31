@@ -589,17 +589,17 @@ public class RoomDashboardApplet extends JFrame {
             int rowH = h / 3;
 
             // Row 1: PIR
-            drawSensorRow(g2, 10, 8, w - 20, rowH - 12, "PIR Motion Sensor (GPIO 12)",
+            drawSensorRow(g2, 10, 8, w - 20, rowH - 12, "PIR Motion Sensor (180ms lag, GPIO 12)",
                 pirActive ? "ACTIVE (Motion Detected)" : "IDLE (No Motion)",
                 pirActive ? COLOR_OCCUPIED : TEXT_MUTED);
 
             // Row 2: Door
-            drawSensorRow(g2, 10, rowH + 8, w - 20, rowH - 12, "Door Reed Switch (GPIO 14)",
+            drawSensorRow(g2, 10, rowH + 8, w - 20, rowH - 12, "Door Reed Switch (20ms debounce, GPIO 14)",
                 doorOpen ? "OPEN (Contact Broken)" : "CLOSED (Contact Latched)",
                 doorOpen ? COLOR_HYST : TEXT_MUTED);
 
             // Row 3: Radar
-            drawSensorRow(g2, 10, (rowH * 2) + 8, w - 20, rowH - 12, "60GHz mmWave Radar (GPIO 27)",
+            drawSensorRow(g2, 10, (rowH * 2) + 8, w - 20, rowH - 12, "60GHz mmWave Radar (140ms slew, GPIO 27)",
                 String.format("%.1f%% Confidence  [%.2f V]", radarConf, radarVoltage),
                 radarConf > 35 ? ACCENT_BLUE : TEXT_MUTED);
 

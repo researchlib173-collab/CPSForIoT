@@ -154,99 +154,353 @@ public class HardwareDictionary {
     }
 
     public static class LED extends CpsDomain.ElectronicComponent {
+        private double currentLumens = 0.0;
+        private long lastTickTime = System.currentTimeMillis();
+
         public LED(String id) {
             super(id, "LED");
+            setProperty("is_illuminated", false);
+            setProperty("brightness_pct", 0.0);
+            setProperty("forward_voltage_v", 2.0); // 2.0V forward threshold knee
+            setProperty("phosphor_decay_ms", 2.0);  // 2ms phosphor persistence delay
             this.baseLogic = () -> {
+                long now = System.currentTimeMillis();
+                long dt = Math.max(1, now - lastTickTime);
+                lastTickTime = now;
+
                 double vIn = getDoubleProperty("v_in", 0.0);
-                setProperty("is_illuminated", vIn >= 2.0);
-                setProperty("brightness_pct", Math.min(100.0, Math.max(0.0, (vIn - 2.0) / 1.3 * 100.0)));
+                double vf = getDoubleProperty("forward_voltage_v", 2.0);
+                
+                // Exponential diode I-V characteristic curve: I = Is * (exp(V/Vt) - 1)
+                double targetPct = 0.0;
+                if (vIn >= vf) {
+                    double over = Math.min(1.3, vIn - vf);
+                    targetPct = Math.min(100.0, Math.pow(over / 1.3, 1.4) * 100.0);
+                }
+
+                // Phosphor decay / rise filter (RC model: 2ms persistence)
+                double alpha = Math.min(1.0, dt / 2.0);
+                currentLumens += (targetPct - currentLumens) * alpha;
+
+                setProperty("is_illuminated", currentLumens > 1.0);
+                setProperty("brightness_pct", currentLumens);
             };
         }
     }
 
-    // ─── SENSORS ─────────────────────────────────────────────────────────────
+    // ─── SENSORS WITH REAL-WORLD DYNAMICS & LATENCY ──────────────────────────
 
     public static class TemperatureSensor extends CpsDomain.ElectronicComponent {
         private final Random rng = new Random();
+        private double sensedTempC = 25.0;
+        private long lastTickTime = System.currentTimeMillis();
+
         public TemperatureSensor(String id, double baseTemp) {
             super(id, "TEMP_SENSOR");
+            this.sensedTempC = baseTemp;
             setProperty("base_temp_c", baseTemp);
             setProperty("temp_c", baseTemp);
-            this.baseLogic = () -> {
-                double base  = getDoubleProperty("base_temp_c", 25.0);
-                double drift = (rng.nextDouble() - 0.5) * 0.4;
-                double temp  = base + drift;
-                setProperty("temp_c", temp);
-                setProperty("v_out", Math.max(0, Math.min(3.3, temp / 100.0 * 3.3)));
-            };
-        }
-    }
+            setProperty("thermal_tau_ms", 3500.0); // 3.5s thermal package mass inertia
+            setProperty("self_heating_c", 0.04);   // +0.04°C self heating
+            setProperty("adc_noise_c", 0.03);      // ±0.03°C thermal Johnson noise
 
-    /** Binary PIR sensor — digital HIGH when motion detected. */
-    public static class PIRSensor extends CpsDomain.ElectronicComponent {
-        public PIRSensor(String id) {
-            super(id, "PIR_SENSOR");
-            setProperty("motion_detected", false);
             this.baseLogic = () -> {
-                boolean motion = (boolean) getProperty("motion_detected", false);
-                setProperty("v_out", motion ? 3.3 : 0.0);
-            };
-        }
-        public void setMotion(boolean detected) { setProperty("motion_detected", detected); }
-        public boolean isMotionDetected()       { return (boolean) getProperty("motion_detected", false); }
-    }
+                long now = System.currentTimeMillis();
+                long dt = Math.max(1, now - lastTickTime);
+                lastTickTime = now;
 
-    /** Reed-switch magnetic door/window contact sensor. */
-    public static class DoorContactSensor extends CpsDomain.ElectronicComponent {
-        public DoorContactSensor(String id) {
-            super(id, "DOOR_CONTACT");
-            setProperty("door_open", false);
-            this.baseLogic = () -> {
-                boolean open = (boolean) getProperty("door_open", false);
-                setProperty("v_out", open ? 3.3 : 0.0);
+                double targetTemp = getDoubleProperty("base_temp_c", 25.0);
+                double tau = getDoubleProperty("thermal_tau_ms", 3500.0);
+
+                // Newton's Law of Cooling / Thermal inertia lag: dT/dt = (T_ambient - T) / tau
+                double alpha = Math.min(1.0, dt / tau);
+                sensedTempC += (targetTemp - sensedTempC) * alpha;
+
+                // Self heating offset + Gaussian ADC thermal noise
+                double noise = (rng.nextDouble() - 0.5) * 0.06;
+                double reportedTemp = sensedTempC + 0.04 + noise;
+
+                setProperty("temp_c", reportedTemp);
+                // 10mV/°C scale (e.g. TMP36) scaled to 0-3.3V
+                double vOut = Math.max(0.0, Math.min(3.3, (reportedTemp / 100.0) * 3.3));
+                setProperty("v_out", vOut);
             };
         }
-        public void setDoorOpen(boolean open) { setProperty("door_open", open); }
-        public boolean isDoorOpen()           { return (boolean) getProperty("door_open", false); }
+
+        public void setTargetTemperature(double t) {
+            setProperty("base_temp_c", t);
+        }
     }
 
     /**
-     * 60 GHz mmWave radar — detects micro-motion (breathing, sleeping).
-     * Output voltage reflects presence confidence: 0–3.3 V.
+     * Binary Passive Infrared (PIR) Sensor — HC-SR501 / Panasonic AMN physical model.
+     * Incorporates real-world pyroelectric heating latency (180ms),
+     * monostable multivibrator dwell hold time (3.0s),
+     * re-trigger inhibit/blocking delay (500ms), and power-on thermal stabilization.
+     */
+    public static class PIRSensor extends CpsDomain.ElectronicComponent {
+        private final Random rng = new Random();
+        private boolean rawMotionStimulus = false;
+        private long scheduledTripTime = 0;
+        private long holdUntilTime = 0;
+        private long blockedUntilTime = 0;
+        private final long bootTime = System.currentTimeMillis();
+
+        // Real-world physical constants
+        public static final long RESPONSE_LATENCY_MS = 180; // 180ms pyroelectric heating & comparator rise
+        public static final long MONOSTABLE_HOLD_MS  = 3000; // 3.0s RC monostable hold time
+        public static final long BLOCKING_INTERVAL_MS= 500;  // 500ms dead-time after pulse falls
+        public static final long WARMUP_DURATION_MS  = 1200; // 1.2s cold boot thermal stabilization
+
+        public PIRSensor(String id) {
+            super(id, "PIR_SENSOR");
+            setProperty("motion_detected", false);
+            setProperty("v_out", 0.0);
+            setProperty("is_warmed_up", false);
+            setProperty("is_blocked", false);
+            setProperty("response_latency_ms", (double) RESPONSE_LATENCY_MS);
+            setProperty("hold_duration_ms", (double) MONOSTABLE_HOLD_MS);
+            setProperty("blocking_interval_ms", (double) BLOCKING_INTERVAL_MS);
+
+            this.baseLogic = () -> {
+                long now = System.currentTimeMillis();
+                boolean isWarmedUp = (now - bootTime >= WARMUP_DURATION_MS);
+                setProperty("is_warmed_up", isWarmedUp);
+
+                boolean isBlocked = (now < blockedUntilTime);
+                setProperty("is_blocked", isBlocked);
+
+                boolean outputHigh = false;
+
+                if (isWarmedUp) {
+                    // Check if scheduled trip time has arrived
+                    if (scheduledTripTime > 0 && now >= scheduledTripTime) {
+                        outputHigh = true;
+                    }
+
+                    // Check if within monostable hold window
+                    if (now < holdUntilTime) {
+                        outputHigh = true;
+                    } else if (scheduledTripTime > 0 && now >= holdUntilTime) {
+                        // Hold expired -> transition to LOW and enter blocking interval
+                        scheduledTripTime = 0;
+                        blockedUntilTime = now + BLOCKING_INTERVAL_MS;
+                    }
+                }
+
+                // Add slight analog electrical jitter to 3.3V rail when HIGH
+                double vOut = 0.0;
+                if (outputHigh) {
+                    double jitter = (rng.nextDouble() - 0.5) * 0.02;
+                    vOut = Math.max(3.25, Math.min(3.33, 3.30 + jitter));
+                } else {
+                    double floor = rng.nextDouble() * 0.015;
+                    vOut = floor;
+                }
+
+                setProperty("v_out", vOut);
+                setProperty("motion_detected", outputHigh);
+            };
+        }
+
+        public void setMotion(boolean detected) {
+            long now = System.currentTimeMillis();
+            if (detected && !rawMotionStimulus) {
+                // Rising edge of physical human motion in field of view
+                rawMotionStimulus = true;
+                if (now >= blockedUntilTime && now - bootTime >= WARMUP_DURATION_MS) {
+                    // Schedule rising edge with pyroelectric response latency (180ms)
+                    scheduledTripTime = now + RESPONSE_LATENCY_MS;
+                    holdUntilTime = scheduledTripTime + MONOSTABLE_HOLD_MS;
+                }
+            } else if (!detected && rawMotionStimulus) {
+                // Motion ceased: output continues to hold until holdUntilTime
+                rawMotionStimulus = false;
+            } else if (detected && rawMotionStimulus) {
+                // Re-triggering while still in motion extends the hold window
+                holdUntilTime = now + MONOSTABLE_HOLD_MS;
+            }
+        }
+
+        public boolean isMotionDetected() { return (boolean) getProperty("motion_detected", false); }
+        public boolean isWarmedUp()       { return (boolean) getProperty("is_warmed_up", false); }
+        public boolean isBlocked()        { return (boolean) getProperty("is_blocked", false); }
+    }
+
+    /**
+     * Reed-switch magnetic door/window contact sensor with physical contact bounce.
+     * Generates 12ms mechanical spring chatter before settling.
+     */
+    public static class DoorContactSensor extends CpsDomain.ElectronicComponent {
+        private final Random rng = new Random();
+        private boolean physicalDoorOpen = false;
+        private long lastTransitionTime = 0;
+        public static final long BOUNCE_DURATION_MS = 12; // 12ms mechanical contact chatter
+
+        public DoorContactSensor(String id) {
+            super(id, "DOOR_CONTACT");
+            setProperty("door_open", false);
+            setProperty("v_out", 0.0);
+            setProperty("contact_bouncing", false);
+            setProperty("bounce_duration_ms", (double) BOUNCE_DURATION_MS);
+
+            this.baseLogic = () -> {
+                long now = System.currentTimeMillis();
+                long elapsed = now - lastTransitionTime;
+                boolean isBouncing = (elapsed < BOUNCE_DURATION_MS && lastTransitionTime > 0);
+                setProperty("contact_bouncing", isBouncing);
+
+                double vOut;
+                if (isBouncing) {
+                    // During mechanical chatter bounce, contacts rapidly make and break
+                    boolean chatter = rng.nextBoolean();
+                    vOut = chatter ? 3.3 : 0.0;
+                } else {
+                    vOut = physicalDoorOpen ? 3.3 : 0.0;
+                }
+                setProperty("v_out", vOut);
+                setProperty("door_open", physicalDoorOpen && !isBouncing);
+            };
+        }
+
+        public void setDoorOpen(boolean open) {
+            if (open != physicalDoorOpen) {
+                physicalDoorOpen = open;
+                lastTransitionTime = System.currentTimeMillis();
+            }
+        }
+
+        public boolean isDoorOpen() { return (boolean) getProperty("door_open", false); }
+    }
+
+    /**
+     * 60 GHz mmWave Radar — Texas Instruments / HLK-LD2410 physical model.
+     * Incorporates 120ms Range-Doppler 2D FFT pipeline accumulation latency,
+     * first-order analog/DSP low-pass filter exponential slew dynamics (tau = 140ms),
+     * physiological micro-Doppler respiratory chest oscillation (0.28 Hz), and RF clutter floor.
      */
     public static class MmWaveRadar extends CpsDomain.ElectronicComponent {
         private final Random rng = new Random();
+        private double targetVoltage = 0.05;
+        private double filteredVoltage = 0.05;
+        private long lastTickTime = System.currentTimeMillis();
+
+        // Real-world physical parameters
+        public static final long PIPELINE_LATENCY_MS = 120; // 120ms 2D FFT & CFAR window lag
+        public static final double SLEW_TAU_MS        = 140.0; // 140ms RC filter time constant
+        public static final double BREATH_FREQ_HZ     = 0.28; // 0.28 Hz (~17 breaths/min)
+        public static final double BREATH_AMP_V       = 0.09; // 90mV chest wall displacement micro-motion
+
+        // Pipeline delay FIFO queue
+        private final ArrayDeque<TimestampedSample> delayPipeline = new ArrayDeque<>();
+
+        private static class TimestampedSample {
+            long targetTime;
+            double targetV;
+            TimestampedSample(long t, double v) { targetTime = t; targetV = v; }
+        }
+
         public MmWaveRadar(String id) {
             super(id, "MMWAVE_RADAR");
             setProperty("presence_detected", false);
             setProperty("confidence_pct", 0.0);
+            setProperty("v_out", 0.05);
+            setProperty("pipeline_latency_ms", (double) PIPELINE_LATENCY_MS);
+            setProperty("filter_tau_ms", SLEW_TAU_MS);
+
             this.baseLogic = () -> {
-                boolean present = (boolean) getProperty("presence_detected", false);
-                // Add slight analogue noise for realism
-                double noise = (rng.nextDouble() - 0.5) * 0.05;
-                double confidence = present ? Math.min(1.0, 0.85 + noise) : Math.max(0.0, 0.05 + noise);
-                setProperty("confidence_pct", confidence * 100.0);
-                setProperty("v_out", confidence * 3.3);
+                long now = System.currentTimeMillis();
+                long dt = Math.max(1, now - lastTickTime);
+                lastTickTime = now;
+
+                // Push current target into pipeline
+                delayPipeline.addLast(new TimestampedSample(now + PIPELINE_LATENCY_MS, targetVoltage));
+
+                // Pop samples that have completed pipeline accumulation
+                double currentDelayedTarget = targetVoltage;
+                while (!delayPipeline.isEmpty() && delayPipeline.peekFirst().targetTime <= now) {
+                    currentDelayedTarget = delayPipeline.pollFirst().targetV;
+                }
+
+                // 1st-order exponential low-pass filter (RC slew dynamics)
+                double alpha = Math.min(1.0, dt / SLEW_TAU_MS);
+                filteredVoltage += (currentDelayedTarget - filteredVoltage) * alpha;
+
+                // Physiological Micro-Doppler respiratory modulation (if presence confidence active)
+                double breathModulation = 0.0;
+                if (filteredVoltage > 1.2) {
+                    double phase = (now % 100000) * 0.001 * 2.0 * Math.PI * BREATH_FREQ_HZ;
+                    breathModulation = BREATH_AMP_V * Math.sin(phase);
+                }
+
+                // RF noise and clutter floor
+                double rfNoise = (rng.nextDouble() - 0.5) * 0.03;
+                double vFinal = Math.max(0.0, Math.min(3.3, filteredVoltage + breathModulation + rfNoise));
+
+                double confidencePct = Math.min(100.0, (vFinal / 3.3) * 100.0);
+                setProperty("confidence_pct", confidencePct);
+                setProperty("v_out", vFinal);
+                setProperty("presence_detected", confidencePct >= 35.0);
             };
         }
-        public void setPresence(boolean present)  { setProperty("presence_detected", present); }
-        public boolean isPresenceDetected()        { return (boolean) getProperty("presence_detected", false); }
-        public double  getConfidence()             { return getDoubleProperty("confidence_pct", 0.0); }
+
+        public void setPresence(boolean present) {
+            this.targetVoltage = present ? 2.85 : 0.05;
+        }
+
+        public void setRawTargetVoltage(double v) {
+            this.targetVoltage = Math.max(0.0, Math.min(3.3, v));
+        }
+
+        public boolean isPresenceDetected() { return (boolean) getProperty("presence_detected", false); }
+        public double getConfidence()       { return getDoubleProperty("confidence_pct", 0.0); }
     }
 
-    /** High-voltage relay module — controlled by 3.3V/5V digital signal. */
+    /**
+     * High-Voltage Relay Module & Contactor — physical electro-mechanical model.
+     * Incorporates inductive coil pickup latency (16ms),
+     * spring-return dropout break latency (11ms),
+     * and AC zero-crossing synchronization delay (8ms).
+     */
     public static class RelayModule extends CpsDomain.ElectronicComponent {
+        private boolean coilEnergizedTarget = false;
+        private boolean contactsClosed = false;
+        private long scheduledContactChangeTime = 0;
+
+        // Electromagnetic relay physics
+        public static final long PICKUP_LATENCY_MS  = 16; // 16ms coil L/R build-up and armature transit
+        public static final long DROPOUT_LATENCY_MS = 11; // 11ms flyback collapse and spring break
+        public static final long AC_ZERO_CROSSING_MS= 8;  // 8ms zero-crossing sync for AC load
+
         public RelayModule(String id) {
             super(id, "RELAY_HV");
             setProperty("coil_energized", false);
             setProperty("load_active", false);
+            setProperty("pickup_latency_ms", (double) PICKUP_LATENCY_MS);
+            setProperty("dropout_latency_ms", (double) DROPOUT_LATENCY_MS);
+            setProperty("contact_resistance_ohms", 0.04);
+
             this.baseLogic = () -> {
                 double vIn = getDoubleProperty("v_in", 0.0);
-                boolean energized = vIn > 1.65;
-                setProperty("coil_energized", energized);
-                setProperty("load_active",    energized);   // Normally-open relay
+                boolean energized = (vIn > 1.65);
+                long now = System.currentTimeMillis();
+
+                if (energized != coilEnergizedTarget) {
+                    coilEnergizedTarget = energized;
+                    // Scheduled contact change with mechanical delay
+                    scheduledContactChangeTime = now + (energized ? (PICKUP_LATENCY_MS + AC_ZERO_CROSSING_MS) : DROPOUT_LATENCY_MS);
+                }
+
+                if (scheduledContactChangeTime > 0 && now >= scheduledContactChangeTime) {
+                    contactsClosed = coilEnergizedTarget;
+                    scheduledContactChangeTime = 0;
+                }
+
+                setProperty("coil_energized", coilEnergizedTarget);
+                setProperty("load_active", contactsClosed);
             };
         }
+
         public boolean isLoadActive() { return (boolean) getProperty("load_active", false); }
     }
 
@@ -364,7 +618,7 @@ public class HardwareDictionary {
         return board;
     }
 
-    /** Creates a standalone Relay board with IN_DC pin */
+    /** Creates a standalone Relay board with IN_DC pin and physical coil pickup/dropout latency */
     public static CpsDomain.Board createRelayModule(String name) {
         CpsDomain.Board board = new CpsDomain.Board(name, "RELAY_HV_MODULE");
         board.addPin("IN_DC", CpsDomain.PinMode.DIGITAL_IN);
@@ -377,10 +631,12 @@ public class HardwareDictionary {
             relay.setProperty("v_in", v);
             relay.tickLogic();
             board.setProperty("load_active", relay.isLoadActive());
+            board.setProperty("coil_energized", relay.getProperty("coil_energized", false));
         };
         return board;
     }
 
+    /** Creates a PIR sensor board with physical pyroelectric response latency & monostable dwell */
     public static CpsDomain.Board createPIRSensor(String name) {
         CpsDomain.Board board = new CpsDomain.Board(name, "PIR_SENSOR");
         board.addPin("DATA", CpsDomain.PinMode.DIGITAL_OUT);
@@ -393,12 +649,17 @@ public class HardwareDictionary {
         PIRSensor pir = new PIRSensor(name + "_pir");
         board.addComponent(pir);
         board.baseLogic = () -> {
+            Object stim = board.getProperty("stimulus_active", null);
+            if (stim instanceof Boolean b) {
+                pir.setMotion(b);
+            }
             pir.tickLogic();
             board.getPin("DATA").setVoltage(pir.getDoubleProperty("v_out", 0.0));
         };
         return board;
     }
 
+    /** Creates a Magnetic Reed Door Contact board with contact bounce dynamics */
     public static CpsDomain.Board createDoorSensor(String name) {
         CpsDomain.Board board = new CpsDomain.Board(name, "DOOR_CONTACT");
         board.addPin("STATE", CpsDomain.PinMode.DIGITAL_OUT);
@@ -406,12 +667,17 @@ public class HardwareDictionary {
         DoorContactSensor door = new DoorContactSensor(name + "_door");
         board.addComponent(door);
         board.baseLogic = () -> {
+            Object stim = board.getProperty("stimulus_active", null);
+            if (stim instanceof Boolean b) {
+                door.setDoorOpen(b);
+            }
             door.tickLogic();
             board.getPin("STATE").setVoltage(door.getDoubleProperty("v_out", 0.0));
         };
         return board;
     }
 
+    /** Creates a 60GHz mmWave Radar board with pipeline accumulation latency & exponential low-pass slew */
     public static CpsDomain.Board createRadarSensor(String name) {
         CpsDomain.Board board = new CpsDomain.Board(name, "MMWAVE_RADAR");
         board.addPin("PRESENCE_SIG", CpsDomain.PinMode.ANALOG_IN);
@@ -419,6 +685,14 @@ public class HardwareDictionary {
         MmWaveRadar radar = new MmWaveRadar(name + "_radar");
         board.addComponent(radar);
         board.baseLogic = () -> {
+            Object stim = board.getProperty("stimulus_active", null);
+            if (stim instanceof Boolean b) {
+                radar.setPresence(b);
+            }
+            Object rawV = board.getProperty("stimulus_voltage", null);
+            if (rawV instanceof Number n) {
+                radar.setRawTargetVoltage(n.doubleValue());
+            }
             radar.tickLogic();
             board.getPin("PRESENCE_SIG").setVoltage(radar.getDoubleProperty("v_out", 0.0));
         };
@@ -452,6 +726,11 @@ public class HardwareDictionary {
      * - Interface: I2C (default address 0x40)
      */
     public static class INA219 extends CpsDomain.ElectronicComponent {
+        private final Random rng = new Random();
+        private long lastConversionTime = System.currentTimeMillis();
+        public static final long CONVERSION_TIME_MS = 1; // 532 µs conversion rounded
+        public static final long I2C_LATENCY_MS     = 1; // 1.2ms I2C transaction framing
+
         public INA219(String id) {
             super(id, "INA219");
             setProperty("bus_voltage", 12.0);
@@ -459,14 +738,21 @@ public class HardwareDictionary {
             setProperty("shunt_voltage_mv", 0.0);
             setProperty("power_w", 0.0);
             setProperty("i2c_addr", 0x40);
+            setProperty("i2c_latency_ms", (double) I2C_LATENCY_MS);
 
             this.baseLogic = () -> {
-                double vBus = getDoubleProperty("bus_voltage", 12.0);
-                double iLoad = getDoubleProperty("current_a", 0.0);
-                double vShuntMv = iLoad * 0.1 * 1000.0; // 0.1 ohm shunt
-                double pWatts = vBus * iLoad;
-                setProperty("shunt_voltage_mv", vShuntMv);
-                setProperty("power_w", pWatts);
+                long now = System.currentTimeMillis();
+                if (now - lastConversionTime >= CONVERSION_TIME_MS) {
+                    lastConversionTime = now;
+                    double vBus = getDoubleProperty("bus_voltage", 12.0);
+                    double iLoad = getDoubleProperty("current_a", 0.0);
+                    // Shunt temperature coefficient drift (50 ppm/°C)
+                    double drift = 1.0 + (rng.nextDouble() - 0.5) * 0.002;
+                    double vShuntMv = iLoad * 0.1 * 1000.0 * drift;
+                    double pWatts = vBus * iLoad;
+                    setProperty("shunt_voltage_mv", vShuntMv);
+                    setProperty("power_w", pWatts);
+                }
             };
         }
     }
@@ -521,10 +807,8 @@ public class HardwareDictionary {
                     ts.setProperty("base_temp_c", (pin.voltage / 3.3) * 100.0);
                 }
                 ts.tickLogic();
-                // Retain current temperature with tiny realistic measurement noise (±0.03°C)
-                double currentT = ts.getDoubleProperty("base_temp_c", 25.0);
-                double noiseT = currentT + (Math.random() - 0.5) * 0.06;
-                double v = Math.max(0.0, Math.min(3.3, (noiseT / 100.0) * 3.3));
+                double currentT = ts.getDoubleProperty("temp_c", 25.0);
+                double v = Math.max(0.0, Math.min(3.3, (currentT / 100.0) * 3.3));
                 pin.voltage = v;
                 pin.digitalState = (v >= 1.65) ? CpsDomain.SignalState.HIGH : CpsDomain.SignalState.LOW;
             }
@@ -534,6 +818,17 @@ public class HardwareDictionary {
 
     public static CpsDomain.Board createComponentBoard(String type, String name) {
         String t = (type != null) ? type.trim().toUpperCase() : "CUSTOM";
+        if (t.equals("CUSTOM") && name != null) {
+            String nUpper = name.toUpperCase();
+            if (nUpper.contains("PIR") || nUpper.contains("MOTION")) t = "PIR";
+            else if (nUpper.contains("DOOR") || nUpper.contains("REED") || nUpper.contains("CONTACT")) t = "DOOR";
+            else if (nUpper.contains("RADAR") || nUpper.contains("MMWAVE")) t = "RADAR";
+            else if (nUpper.contains("RELAY")) t = "RELAY";
+            else if (nUpper.contains("TEMP")) t = "TEMP";
+            else if (nUpper.contains("LED")) t = "LED";
+            else if (nUpper.contains("INA219") || nUpper.contains("POWER")) t = "INA219";
+            else if (nUpper.contains("ESP32")) t = "ESP32";
+        }
         return switch (t) {
             case "ESP32", "ESP32_WROOM"           -> createESP32(name);
             case "NODEMCU", "ESP8266"             -> createNodeMCU(name);

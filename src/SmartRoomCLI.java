@@ -27,10 +27,9 @@ public class SmartRoomCLI {
     // Port 9091 (Sensors):   All physical sensor stimuli & netlist inputs
     // Port 9092 (Actuators): All physical actuator states & control
     // ========================================================================
-    public static CpsDomain.PhysicalTerminalBusBridge sensorBridge   = null;
-    public static CpsDomain.PhysicalTerminalBusBridge actuatorBridge = null;
-    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null;
-    public static CpsDomain.ExternalAppletBridge      telemetryBridge = null;
+    public static CpsDomain.PhysicalTerminalBusBridge sensorBridge   = null; // PORT 9091
+    public static CpsDomain.PhysicalTerminalBusBridge actuatorBridge = null; // PORT 9092
+    public static CpsDomain.PhysicalTerminalBusBridge terminalBridge = null; // Legacy alias to sensorBridge
 
     private static volatile boolean isRunning   = false;
     private static final ScheduledExecutorService scheduler =
@@ -39,10 +38,6 @@ public class SmartRoomCLI {
     // ─── Entry point ─────────────────────────────────────────────────────────
     public static void main(String[] args) {
         workspaces.put("default", new LinkedHashMap<>());
-
-        // Instantly host all 3 ports at random ephemeral numbers without any prefixed values
-        openPorts(0, 0, 0);
-
         Scanner sc = new Scanner(System.in);
         printBanner();
         while (true) {
@@ -137,35 +132,23 @@ public class SmartRoomCLI {
                             activeWorkspace = wName;
                             System.out.printf("[WORKSPACE] Switched to: %s%n", wName);
                         }
-                        case "link" -> {
-                            // workspace link random | workspace link dynamic | workspace link [sPort] [tPort] [aPort]
-                            int sPort = 0;
-                            int tPort = 0;
-                            int aPort = 0;
-                            if (parts.length > 2 && !parts[2].equalsIgnoreCase("random") && !parts[2].equalsIgnoreCase("dynamic") && !parts[2].equalsIgnoreCase("auto")) {
-                                sPort = parsePort(parts[2]);
-                                if (parts.length > 3) tPort = parsePort(parts[3]);
-                                if (parts.length > 4) aPort = parsePort(parts[4]);
-                            }
-                            openPorts(sPort, tPort, aPort);
-                        }
                         case "terminal", "sensor" -> {
-                            // workspace terminal link tcp [port] | workspace sensor link tcp [port]
+                            // workspace terminal link tcp 9091 | workspace sensor link tcp 9091
                             if (parts[2].equalsIgnoreCase("link")) {
-                                int port = parsePort(parts[4]);
+                                int port = Integer.parseInt(parts[4]);
                                 sensorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
                                 sensorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
                                 terminalBridge = sensorBridge;
-                                System.out.printf("[PORT %d - SENSORS] Sensor Input Bus open on port %d%n", sensorBridge.getPort(), sensorBridge.getPort());
+                                System.out.printf("[PORT %d - SENSORS] Sensor Input Bus open on port %d%n", port, port);
                             }
                         }
                         case "actuator" -> {
-                            // workspace actuator link tcp [port]
+                            // workspace actuator link tcp 9092
                             if (parts[2].equalsIgnoreCase("link")) {
-                                int port = parsePort(parts[4]);
+                                int port = Integer.parseInt(parts[4]);
                                 actuatorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(port, boards(), wires);
                                 actuatorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
-                                System.out.printf("[PORT %d - ACTUATORS] Actuator Output Bus open on port %d%n", actuatorBridge.getPort(), actuatorBridge.getPort());
+                                System.out.printf("[PORT %d - ACTUATORS] Actuator Output Bus open on port %d%n", port, port);
                             }
                         }
                         case "list" -> workspaces.forEach((n, b) ->
@@ -762,51 +745,34 @@ public class SmartRoomCLI {
                     if (parts.length > 1 && parts[1].equalsIgnoreCase("link")) {
                         CpsDomain.Board b = boards().get(parts[2]);
                         if (b == null) { System.out.println("[ERR] Board not found: " + parts[2]); return; }
-                        int port = parsePort(parts[4]);
+                        int port = Integer.parseInt(parts[4]);
                         b.enableSocketBridge(port);
-                        System.out.printf("[BRIDGE]    %s → localhost:%d%n", parts[2], b.radioBridge.getPort());
+                        System.out.printf("[BRIDGE]    %s → localhost:%d%n", parts[2], port);
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("blink") || parts[1].equalsIgnoreCase("led"))) {
-                        int port = (parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_ACTUATORS; // 9092 (Actuators)
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_ACTUATORS; // 9092 (Actuators)
                         System.out.printf("[APPLET] Launching LED Blink Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new LedBlinkApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("room") || parts[1].equalsIgnoreCase("smartroom") || parts[1].equalsIgnoreCase("roomdash"))) {
-                        int port = (parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_TELEMETRY; // 9090 (Wi-Fi Telemetry)
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_TELEMETRY; // 9090 (Wi-Fi Telemetry)
                         System.out.printf("[APPLET] Launching Room Dashboard Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new RoomDashboardApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("sensor") || parts[1].equalsIgnoreCase("stimulus") || parts[1].equalsIgnoreCase("sensors"))) {
-                        int port = (parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
                         System.out.printf("[APPLET] Launching Sensor Input Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new SensorInputApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("dashboard") || parts[1].equalsIgnoreCase("dash") || parts[1].equalsIgnoreCase("thermal"))) {
-                        int port = (parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_TELEMETRY; // 9090 (Wi-Fi Telemetry)
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_TELEMETRY; // 9090 (Wi-Fi Telemetry)
                         System.out.printf("[APPLET] Launching Thermal Bench Telemetry Dashboard (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new ThermalBenchDashboardApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("input") || parts[1].equalsIgnoreCase("rps") || parts[1].equalsIgnoreCase("psu"))) {
-                        int port = (parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
+                        int port = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS; // 9091 (All Sensors)
                         System.out.printf("[APPLET] Launching Regulated Power Supply & Motor Input Applet (port %d)...%n", port);
                         SwingUtilities.invokeLater(() -> new ThermalBenchInputApplet("localhost", port));
                     } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("nobita") || parts[1].equalsIgnoreCase("sync") || parts[1].equalsIgnoreCase("video"))) {
-                        int sPort = (parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_SENSORS;
-                        int tPort = (parts.length > 3) ? parsePort(parts[3]) : CpsDomain.PORT_TELEMETRY;
+                        int sPort = (parts.length > 2) ? Integer.parseInt(parts[2]) : CpsDomain.PORT_SENSORS;
+                        int tPort = (parts.length > 3) ? Integer.parseInt(parts[3]) : CpsDomain.PORT_TELEMETRY;
                         System.out.printf("[APPLET] Launching Nobita Departure CPS Video Sync App (sensors=%d, telem=%d)...%n", sPort, tPort);
                         SwingUtilities.invokeLater(() -> new NobitaDepartureSyncApp("localhost", sPort, tPort));
-                    } else if (parts.length > 1 && (parts[1].equalsIgnoreCase("bench") || parts[1].equalsIgnoreCase("realistic") || parts[1].equalsIgnoreCase("smartroombench"))) {
-                        int sPort = (sensorBridge != null) ? sensorBridge.getPort() : ((parts.length > 2) ? parsePort(parts[2]) : CpsDomain.PORT_SENSORS);
-                        int tPort = -1;
-                        for (CpsDomain.Board b : boards().values()) { if (b.radioBridge != null) { tPort = b.radioBridge.getPort(); break; } }
-                        if (tPort <= 0) tPort = (parts.length > 3) ? parsePort(parts[3]) : CpsDomain.PORT_TELEMETRY;
-                        int fsPort = sPort, ftPort = tPort;
-                        System.out.printf("[APPLET] Launching Realistic Smart Room Bench (sensors=%d, telem=%d)...%n", fsPort, ftPort);
-                        SwingUtilities.invokeLater(() -> new SmartRoomBenchApp("localhost", fsPort, ftPort));
-                    }
-                }
-
-                // ── ports / ports random ──────────────────────────────────────
-                case "ports" -> {
-                    if (parts.length > 1 && (parts[1].equalsIgnoreCase("random") || parts[1].equalsIgnoreCase("dynamic") || parts[1].equalsIgnoreCase("auto"))) {
-                        openPorts(0, 0, 0);
-                    } else {
-                        printActivePorts();
                     }
                 }
 
@@ -971,59 +937,5 @@ public class SmartRoomCLI {
             }
         }
         return null;
-    }
-
-    public static int parsePort(String s) {
-        if (s == null) return 0;
-        String t = s.trim().toLowerCase();
-        if (t.equals("random") || t.equals("dynamic") || t.equals("dyn") || t.equals("auto") || t.equals("0")) {
-            return 0; // OS allocates dynamic ephemeral port
-        }
-        try {
-            return Integer.parseInt(t);
-        } catch (Exception x) {
-            return 0;
-        }
-    }
-
-    public static void openPorts(int sPort, int tPort, int aPort) {
-        sensorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(sPort, boards(), wires);
-        sensorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
-        terminalBridge = sensorBridge;
-
-        actuatorBridge = CpsDomain.PhysicalTerminalBusBridge.getOrCreate(aPort, boards(), wires);
-        actuatorBridge.setOnPinChangeCallback(SmartRoomCLI::tick);
-
-        telemetryBridge = CpsDomain.ExternalAppletBridge.getOrCreate(tPort, "RadioTelemetry");
-
-        for (CpsDomain.Board b : boards().values()) {
-            if (b.radioBridge == null) {
-                b.radioBridge = telemetryBridge;
-                b.socketBridge = telemetryBridge;
-            }
-        }
-        printActivePorts();
-    }
-
-    public static void printActivePorts() {
-        int s = (sensorBridge != null) ? sensorBridge.getPort() : -1;
-        int a = (actuatorBridge != null) ? actuatorBridge.getPort() : -1;
-        int t = (telemetryBridge != null) ? telemetryBridge.getPort() : -1;
-        if (t <= 0) {
-            for (CpsDomain.Board b : boards().values()) {
-                if (b.radioBridge != null) { t = b.radioBridge.getPort(); break; }
-            }
-        }
-        System.out.println("╔══════════════════════════════════════════════════════════════════════════════╗");
-        System.out.println("║            ⚡ CYBER-PHYSICAL PORTS INSTANTLY HOSTED (RANDOM)                 ║");
-        System.out.println("╠══════════════════════════════════════════════════════════════════════════════╣");
-        System.out.printf("║  📡 TELEMETRY STREAM PORT  : %-46s ║%n", (t > 0 ? String.valueOf(t) : "ALLOCATING..."));
-        System.out.printf("║  ⚡ SENSORS BUS PORT        : %-46s ║%n", (s > 0 ? String.valueOf(s) : "ALLOCATING..."));
-        System.out.printf("║  💡 ACTUATOR BUS PORT       : %-46s ║%n", (a > 0 ? String.valueOf(a) : "ALLOCATING..."));
-        System.out.println("╠══════════════════════════════════════════════════════════════════════════════╣");
-        System.out.println("║  👉 PLEASE NOTE DOWN THESE PORT NUMBERS!                                     ║");
-        System.out.println("║     These values are randomly hosted for this session and are not reused.    ║");
-        System.out.println("║     You must enter these exact numbers into the GUI apps when prompted!      ║");
-        System.out.println("╚══════════════════════════════════════════════════════════════════════════════╝");
     }
 }

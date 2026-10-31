@@ -22,8 +22,14 @@ connect RoomMasterMCU GPIO_22 to HvacRelay IN_DC hvac_control_wire
 # FLASH ON-BOARD FIRMWARE: Burn the Smart Room control logic directly to the MCU
 flash RoomMasterMCU SmartRoomFirmware 30
 
-# DYNAMIC PORTS: Print active random ports for user to note down
-ports
+# PORT 9090: Open Virtual Wi-Fi / Bluetooth Radio Bridge for IoT telemetry
+applet link RoomMasterMCU tcp 9090
+
+# PORT 9091: Open Physical Sensors Bus Bridge for sensor stimuli & input access
+workspace sensor link tcp 9091
+
+# PORT 9092: Open Physical Actuators Bus Bridge for relays & outputs monitoring
+workspace actuator link tcp 9092
 
 sim start
 sim status

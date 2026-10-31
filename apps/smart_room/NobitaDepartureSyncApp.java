@@ -200,6 +200,8 @@ public class NobitaDepartureSyncApp extends JFrame {
     private JLabel pirCard;
     private JLabel radarCard;
     private JLabel hystCard;
+    private JLabel latencyCard;
+    private JLabel relayLagCard;
 
     // Event Log
     private JTextArea logArea;
@@ -385,12 +387,14 @@ public class NobitaDepartureSyncApp extends JFrame {
         telemTitle.setForeground(ACCENT_CYAN);
         telemetryCard.add(telemTitle, BorderLayout.NORTH);
 
-        JPanel metricsGrid = new JPanel(new GridLayout(2, 2, 12, 12));
+        JPanel metricsGrid = new JPanel(new GridLayout(3, 2, 10, 10));
         metricsGrid.setOpaque(false);
         roomStateCard = createMetricCard("ROOM STATE", "VACANT", ACCENT_GOLD, metricsGrid);
+        hystCard      = createMetricCard("HYSTERESIS REMAIN", "0 s", ACCENT_CYAN, metricsGrid);
         pirCard       = createMetricCard("PIR SENSOR (GPIO_12)", "0.0 V [LOW]", TEXT_WHITE, metricsGrid);
         radarCard     = createMetricCard("RADAR CONF (GPIO_27)", "0.0% (0.00V)", TEXT_WHITE, metricsGrid);
-        hystCard      = createMetricCard("HYSTERESIS REMAIN", "0 s", ACCENT_CYAN, metricsGrid);
+        latencyCard   = createMetricCard("PHYSICAL SENSOR LATENCY", "PIR: 180ms | RADAR: 140ms", ACCENT_GOLD, metricsGrid);
+        relayLagCard  = createMetricCard("RELAY & DEBOUNCE TIMING", "COIL: 16ms | REED: 20ms", ACCENT_CYAN, metricsGrid);
         telemetryCard.add(metricsGrid, BorderLayout.CENTER);
 
         // Manual Injection Buttons
@@ -806,6 +810,15 @@ public class NobitaDepartureSyncApp extends JFrame {
 
             hystCard.setText(hyst + " s");
             hystCard.setForeground(hyst > 0 ? ACCENT_GOLD : TEXT_MUTED);
+
+            if (json.contains("\"latency\"")) {
+                double pirLag = extractJsonDouble(json, "pir_resp_ms", 180.0);
+                double radTau = extractJsonDouble(json, "radar_filter_ms", 140.0);
+                double coilLag = extractJsonDouble(json, "relay_pickup_ms", 16.0);
+                double dbMs = extractJsonDouble(json, "door_debounce_ms", 20.0);
+                latencyCard.setText(String.format(Locale.US, "PIR: %.0fms | RADAR: %.0fms", pirLag, radTau));
+                relayLagCard.setText(String.format(Locale.US, "COIL: %.0fms | REED: %.0fms", coilLag, dbMs));
+            }
         });
     }
 
